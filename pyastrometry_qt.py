@@ -294,10 +294,10 @@ def convert_ra_deg_to_hour(ra_deg):
 def precess_J2000_to_JNOW(pos_J2000):
     time_now = Time(datetime.utcnow(), scale='utc')
     return pos_J2000.transform_to(FK5(equinox=Time(time_now.jd, format="jd", scale="utc")))
-    
+
 def precess_JNOW_to_J2000(pos_JNOW):
     return pos_JNOW.transform_to(FK5(equinox='J2000'))
-    
+
 # returns object containing all parsed command line options
 def parse_command_line():
     parser = argparse.ArgumentParser()
@@ -310,12 +310,12 @@ def parse_command_line():
 class Telescope:
     def __init__(self):
         pass
-    
+
     def connect_to_telescope(self, driver):
         logging.info(f"Connect to telescope driver {driver}")
         self.tel = win32com.client.Dispatch(driver)
         print(self.tel, self.tel.RightAscension, self.tel.Declination)
-    
+
         if self.tel.Connected:
             logging.info("	->Telescope was already connected")
         else:
@@ -323,52 +323,233 @@ class Telescope:
             if self.tel.Connected:
                 logging.info("	Connected to telescope now")
             else:
-                logging.error("	Unable to connect to telescope, expect exception")    
+                logging.error("	Unable to connect to telescope, expect exception")
 
     def get_position_jnow(self):
         time_now = Time(datetime.utcnow(), scale='utc')
         return SkyCoord(ra=self.tel.RightAscension*u.hour, dec=self.tel.Declination*u.degree, frame='fk5', equinox=Time(time_now.jd, format="jd", scale="utc"))
-    
+
     def get_position_j2000(self):
         pos_jnow = self.get_position_jnow()
         return precess_JNOW_to_J2000(pos_jnow)
 
+    def sync(self, pos):
+        rc = self.tel.SyncToCoordinates(pos.ra.hour, pos.dec.degree)
+
 class MyApp(QtWidgets.QMainWindow):
-    def __init__(self, args):
+    def __init__(self, app, args):
 
         super().__init__()
 
+        self.app = app
         self.args = args
 
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
 
-    
         # connect to telescope
         self.tel = Telescope()
         self.tel.connect_to_telescope(self.args.telescope)
         self.ui.telescope_driver_label.setText(self.args.telescope)
-        
+
+        # connect to astrometry.net
+        self.astroclient = Client()
+        self.astroclient.login('***REMOVED***')
+
+        self.ui.solve_file_button.clicked.connect(self.solve_file_cb)
+        self.ui.sync_pos_button.clicked.connect(self.sync_pos_cb)
+
+        # init vars
+        self.solved_j2000 = None
+
+        # used for status bar
+        self.activity_bar = QtWidgets.QProgressBar()
+        self.activity_bar.setRange(0, 0)
+        self.activity_bar.resize(75, 20)
+
         # poll for focus pos
         self.curpospoller = QtCore.QTimer()
         self.curpospoller.timeout.connect(self.poll_curpos_CB)
         self.curpospoller.start(1000)
-        
+
     def poll_curpos_CB(self):
-        pos_j2000 = self.tel.get_position_j2000()
+        self.set_current_position_labels(self.tel.get_position_j2000())
+
+    def show_activity_bar(self):
+        self.ui.statusbar.addPermanentWidget(self.activity_bar)
+
+    def hide_activity_bar(self):
+        self.ui.statusbar.removeWidget(self.activity_bar)
+
+    def set_current_position_labels(self, pos_j2000):
         self.store_skycoord_to_label(pos_j2000, self.ui.cur_ra_j2000_label, self.ui.cur_dec_j2000_label)
-        
+
         pos_jnow = precess_J2000_to_JNOW(pos_j2000)
-        
-        self.store_skycoord_to_label(pos_jnow, self.ui.cur_ra_jnow_label, self.ui.cur_dec_jnow_label)        
-        
+
+        self.store_skycoord_to_label(pos_jnow, self.ui.cur_ra_jnow_label, self.ui.cur_dec_jnow_label)
+
+    def set_solved_position_labels(self, pos_j2000):
+        self.store_skycoord_to_label(pos_j2000, self.ui.solve_ra_j2000_label, self.ui.solve_dec_j2000_label)
+
+        pos_jnow = precess_J2000_to_JNOW(pos_j2000)
+
+        self.store_skycoord_to_label(pos_jnow, self.ui.solve_ra_jnow_label, self.ui.solve_dec_jnow_label)
+
+    def sync_pos_cb(self):
+        if self.solved_j2000 is None:
+            logging.error("Cannot SYNC no solved POSITION!")
+            err =  QtWidgets.QMessageBox()
+            err.setIcon(QtWidgets.QMessageBox.Critical)
+            err.setInformativeText("Cannot sync mount - must solve position first!")
+            err.setStandardButtons(QtWidgets.QMessageBox.Ok)
+            err.exec()
+            return
+
+        # convert to jnow
+        solved_jnow = precess_J2000_to_JNOW(self.solved_j2000)
+
+        # get confirmation
+        yesno = QtWidgets.QMessageBox()
+        yesno.setIcon(QtWidgets.QMessageBox.Question)
+        yesno.setInformativeText(f"Do you want to sync the mount?\n\nPostition: {solved_jnow.to_string('hmsdms')}")
+        yesno.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+        result = yesno.exec()
+        print(result)
+
+        if result == QtWidgets.QMessageBox.Yes:
+            print("YES")
+
+            # check if its WAY OFF
+            sep = self.solved_j2000.separation(self.tel.get_position_j2000())
+            logging.info(f"Sync pos is {sep.degree} degrees from current pos")
+
+            if sep.degree > 10:
+                yesno = QtWidgets.QMessageBox()
+                yesno.setIcon(QtWidgets.QMessageBox.Question)
+                yesno.setInformativeText(f"The sync position is {sep.degree:6.2f} degrees from current position!\nDo you REALLY want to sync the mount?")
+                yesno.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+                result = yesno.exec()
+
+                if result == QtWidgets.QMessageBox.Yes:
+                    print("YES")
+                    self.tel.sync(solved_jnow)
+                else:
+                    print("NO")
+        else:
+            print("NO")
+
+    def solve_file_cb(self):
+        fname, retcode = QtWidgets.QFileDialog.getOpenFileName(self, "Select file to solve:")
+        logging.info(f"solve_file_cb: User selected file {fname}")
+        if len(fname) < 1:
+            logging.warning("solve_file_cb: User aborted file open")
+            return
+
+        self.solved_j2000 = self.plate_solve_file(fname)
+        self.set_solved_position_labels(self.solved_j2000)
+
+    def plate_solve_file(self, fname):
+
+        # FIXME activity progress bar doesnt work and is too big!
+        #self.show_activity_bar()
+
+        self.ui.statusbar.showMessage("Uploading image to astrometry.net...")
+        self.app.processEvents()
+
+        upres = self.astroclient.upload('Focus.fit')
+        logging.info(f"upload result = {upres}")
+
+        if upres['status'] != 'success':
+            logging.error('upload failed!')
+            self.ui.statusbar.showMessage("Uploading image failed!!!")
+            err =  QtWidgets.QMessageBox()
+            err.setIcon(QtWidgets.QMessageBox.Critical)
+            err.setInformativeText("Error uploading image to astrometry.net!")
+            err.setStandardButtons(QtWidgets.QMessageBox.Ok)
+            err.exec()
+            return
+
+        self.ui.statusbar.showMessage("Upload successful")
+        self.app.processEvents()
+
+        sub_id = upres['subid']
+
+#        print("sub_id=", sub_id)
+
+        loop_count = 0
+        if sub_id is not None:
+            while True:
+                msgstr = "Checking job status"
+                for i in range(0, loop_count):
+                    msgstr = msgstr + '.'
+                logging.info(msgstr)
+                self.ui.statusbar.showMessage("Upload successful - " + msgstr)
+                self.app.processEvents()
+
+                stat = self.astroclient.sub_status(sub_id, justdict=True)
+#                print('Got sub status:', stat)
+                jobs = stat.get('jobs', [])
+                if len(jobs):
+                    for j in jobs:
+                        if j is not None:
+                            break
+                    if j is not None:
+                        print('Selecting job id', j)
+                        solved_id = j
+                        break
+
+                loop_count += 1
+                if loop_count > 3:
+                    loop_count = 0
+
+                time.sleep(5)
+
+
+        self.ui.statusbar.showMessage(f"Job started - id = {solved_id}")
+        self.app.processEvents()
+
+        while True:
+            job_stat = self.astroclient.job_status(solved_id)
+
+#            print("job_stat", job_stat)
+
+            if job_stat == 'success':
+                break
+
+            time.sleep(5)
+
+        final = self.astroclient.job_status(solved_id)
+
+#        print("final job status =", final)
+
+        if final != 'success':
+            print("Plate solve failed!")
+            print(final)
+            self.ui.statusbar.showMessage("Plate solve failed!")
+            err =  QtWidgets.QMessageBox()
+            err.setIcon(QtWidgets.QMessageBox.Critical)
+            err.setInformativeText("Plate solve failed!")
+            err.setStandardButtons(QtWidgets.QMessageBox.Ok)
+            err.exec()
+            return
+
+        final_calib = self.astroclient.job_calib_result(solved_id)
+        print("final_calib=", final_calib)
+
+        self.ui.statusbar.showMessage("Plate solve succeeded")
+        self.app.processEvents()
+
+        solved_j2000 = SkyCoord(ra=final_calib['ra']*u.hour, dec=final_calib['dec']*u.degree, frame='fk5', equinox='J2000')
+
+        return solved_j2000
+
     def store_skycoord_to_label(self, pos, lbl_ra, lbl_dec):
         lbl_ra.setText('  ' + pos.ra.to_string(u.hour, pad=True))
         lbl_dec.setText(pos.dec.to_string(alwayssign=True, pad=True))
 
 
 if __name__ == '__main__':
-    logging.basicConfig(filename='pyfocusstars3.log',
+    logging.basicConfig(filename='pyastrometry_qt.log',
                         level=logging.DEBUG,
                         format='%(asctime)s %(levelname)-8s %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
@@ -382,156 +563,14 @@ if __name__ == '__main__':
     LOG.addHandler(CH)
 
     logging.info('pyastrometry_qt starting')
-    
+
     ARGS = parse_command_line()
 
-    
+
     app = QtWidgets.QApplication(sys.argv)
-    window = MyApp(ARGS)
+    window = MyApp(app, ARGS)
     window.show()
-    sys.exit(app.exec_())   
-    
-    
-    
-    
-    
-    c = Client()
-    c.login('***REMOVED***')
-
-    scale_lower = 0.8
-    scale_upper = 1.2
-    sub_id = None
-    solved_id = None
-
-    upres = c.upload('Focus.fit')
-    print(upres)
-
-    if upres['status'] != 'success':
-        print('upload failed!')
-        print(upres)
-        sys.exit(-1)
-
-    sub_id = upres['subid']
-
-    print("sub_id=", sub_id)
-
-    if sub_id is not None:
-        while True:
-            stat = c.sub_status(sub_id, justdict=True)
-            print('Got sub status:', stat)
-            jobs = stat.get('jobs', [])
-            if len(jobs):
-                for j in jobs:
-                    if j is not None:
-                        break
-                if j is not None:
-                    print('Selecting job id', j)
-                    solved_id = j
-                    break
-            time.sleep(5)
-
-
-    while True:
-        job_stat = c.job_status(solved_id)
-
-        print("job_stat", job_stat)
-
-        if job_stat == 'success':
-            break
-
-        time.sleep(5)
-
-    final = c.job_status(solved_id)
-
-    print("final job status =", final)
-
-    if final != 'success':
-        print("Plate solve failed!")
-        print(final)
-        sys.exit(-1)
-
-    final_calib = c.job_calib_result(solved_id)
-    print("final_calib=", final_calib)
-
-    # setup telescope
-    #tel = win32com.client.Dispatch("AstroPhysicsV2.Telescope")
-    tel = win32com.client.Dispatch("ASCOM.Simulator.Telescope")
-
-    if tel.Connected:
-        print("	->Telescope was already connected")
-    else:
-        tel.Connected = True
-        if tel.Connected:
-            print("	Connected to telescope now")
-        else:
-            print("	Unable to connect to telescope, expect exception")
-
-    # telescope RA is in HOURS and DEC in degrees in JNOW!
-    cur_ra = tel.RightAscension
-    cur_dec = tel.Declination
-
-    time_now = Time(datetime.utcnow(), scale='utc')
-
-    curpos = SkyCoord(ra=cur_ra*u.hour, dec=cur_dec*u.degree, frame='fk5', equinox=Time(time_now.jd, format="jd", scale="utc"))
-
-    # solved RA is in DEGREES (we convert to hours) and DEC in DEGREES in J2000!
-    solved_ra = convert_ra_deg_to_hour(final_calib['ra'])
-    solved_dec = final_calib['dec']
-
-    solved = SkyCoord(ra=solved_ra*u.hour, dec=solved_dec*u.degree, frame='fk5', equinox='J2000')
-
-    print("Telescope RA  =", cur_ra)
-    print("Telescope DEC =", cur_dec)
-    print("Solved    RA  =", solved_ra)
-    print("Solved    DEC =", solved_dec)
-
-    print("Telescope pos (Jnow) =", curpos.to_string('hmsdms'))
-    print("Solved    pos (J2000)=", solved.to_string('hmsdms'))
-
-    # precess solved J2000 pos to JNOW
-    solved_jnow = solved.transform_to(FK5(equinox=Time(time_now.jd, format="jd", scale="utc")))
-
-    print("Solved    pos (Jnow) =", solved_jnow.to_string('hmsdms'))
-
-    print("Solved    pos (Jnow) =", solved_jnow.ra.hour, solved_jnow.dec.degree)
-
-    # delta_ra = solved_ra - cur_ra
-    # delta_dec = solved_dec - cur_dec
-
-    # print("Delta     RA  =", delta_ra)
-    # print("Delta     DEC =", delta_dec)
-
-    sep = solved_jnow.separation(curpos)
-
-    print("delta=", sep.degree, " degrees")
-
-    ans = input("Press y to sync: ")
-
-    if ans == 'y':
-        doit = False
-        if sep.degree > 10:
-            ans2 = input("Error is > 10 deg - are you sure (enter YES)? ")
-            if ans2 == 'YES':
-                doit = True
-        elif sep.degree > 2:
-            ans2 = input("Error is > 2 deg - are you sure (enter y)? ")
-
-            if ans2 == 'y':
-                doit = True
-        else:
-            doit = True
-
-        if doit:
-            print("SYNCING")
-            rc = tel.SyncToCoordinates(solved_jnow.ra.hour, solved_jnow.dec.degree)
-            print("rc=", rc)
-        else:
-            print("NOT SYNCING!")
-
-        sys.exit(0)
-    else:
-        print("NOT SYNCING!")
-        sys.exit(0)
+    sys.exit(app.exec_())
 
 
 
