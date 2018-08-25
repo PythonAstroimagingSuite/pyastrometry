@@ -480,29 +480,31 @@ class MyApp(QtWidgets.QMainWindow):
         if sub_id is not None:
             while True:
                 msgstr = "Checking job status"
-                for i in range(0, loop_count):
+                for i in range(0, loop_count % 4):
                     msgstr = msgstr + '.'
-                logging.info(msgstr)
+                if (loop_count % 5) == 0:                    
+                    logging.info(msgstr)
                 self.ui.statusbar.showMessage("Upload successful - " + msgstr)
                 self.app.processEvents()
 
-                stat = self.astroclient.sub_status(sub_id, justdict=True)
-#                print('Got sub status:', stat)
-                jobs = stat.get('jobs', [])
-                if len(jobs):
-                    for j in jobs:
+                if (loop_count % 10) == 0:
+                    stat = self.astroclient.sub_status(sub_id, justdict=True)
+    #                print('Got sub status:', stat)
+                    jobs = stat.get('jobs', [])
+                    if len(jobs):
+                        for j in jobs:
+                            if j is not None:
+                                break
                         if j is not None:
+                            print('Selecting job id', j)
+                            solved_id = j
                             break
-                    if j is not None:
-                        print('Selecting job id', j)
-                        solved_id = j
-                        break
 
                 loop_count += 1
-                if loop_count > 3:
+                if loop_count > 30:
                     loop_count = 0
 
-                time.sleep(5)
+                time.sleep(0.5)
 
 
         self.ui.statusbar.showMessage(f"Job started - id = {solved_id}")

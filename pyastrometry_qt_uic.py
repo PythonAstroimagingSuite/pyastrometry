@@ -11,7 +11,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
-        MainWindow.resize(329, 418)
+        MainWindow.resize(329, 415)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
         self.formLayout = QtWidgets.QFormLayout(self.centralwidget)
@@ -96,6 +96,8 @@ class Ui_MainWindow(object):
         self.sync_pos_button = QtWidgets.QPushButton(self.groupBox_2)
         self.sync_pos_button.setObjectName("sync_pos_button")
         self.gridLayout_2.addWidget(self.sync_pos_button, 5, 1, 1, 1)
+        spacerItem = QtWidgets.QSpacerItem(40, 10, QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Minimum)
+        self.gridLayout_2.addItem(spacerItem, 4, 0, 1, 2)
         self.formLayout.setWidget(2, QtWidgets.QFormLayout.SpanningRole, self.groupBox_2)
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(MainWindow)
