@@ -4,10 +4,11 @@
 #print(R.text)
 #print(R['session'])
 
-import os
+#import os
 import sys
 import time
-import base64
+#import base64
+from datetime import datetime
 
 try:
     # py3
@@ -28,6 +29,11 @@ from email.mime.application  import MIMEApplication
 from email.encoders import encode_noop
 
 import astropy.io.fits as pyfits
+from astropy import units as u
+from astropy.time import Time
+from astropy.coordinates import SkyCoord
+from astropy.coordinates import FK5
+
 import win32com.client      #needed to load COM objects
 
 
@@ -63,11 +69,11 @@ class Client(object):
         '''
         if self.session is not None:
             args.update({ 'session' : self.session })
-        print('Python:', args)
+        #print('Python:', args)
         json = python2json(args)
-        print('Sending json:', json)
+        #print('Sending json:', json)
         url = self.get_url(service)
-        print('Sending to URL:', url)
+        #print('Sending to URL:', url)
 
         # If we're sending a file, format a multipart/form-data
         if file_args is not None:
@@ -123,10 +129,10 @@ class Client(object):
         else:
             # Else send x-www-form-encoded
             data = {'request-json': json}
-            print('Sending form data:', data)
+            #print('Sending form data:', data)
             data = urlencode(data)
             data = data.encode('utf-8')
-            print('Sending data:', data)
+            #print('Sending data:', data)
             headers = {}
 
         request = Request(url=url, headers=headers, data=data)
@@ -134,11 +140,11 @@ class Client(object):
         try:
             f = urlopen(request)
             txt = f.read()
-            print('Got json:', txt)
+            #print('Got json:', txt)
             result = json2python(txt)
-            print('Got result:', result)
+            #print('Got result:', result)
             stat = result.get('status')
-            print('Got status:', stat)
+            #print('Got status:', stat)
             if stat == 'error':
                 errstr = result.get('errormessage', '(none)')
                 raise RequestError('server error message: ' + errstr)
@@ -186,7 +192,7 @@ class Client(object):
                 args.update({key: val})
             elif default is not None:
                 args.update({key: default})
-        print('Upload args:', args)
+        #print('Upload args:', args)
         return args
 
     def url_upload(self, url, **kwargs):
@@ -220,21 +226,27 @@ class Client(object):
         if justdict:
             return result
         stat = result.get('status')
-        if stat == 'success':
-            result = self.send_request('jobs/%s/calibration' % job_id)
-            print('Calibration:', result)
-            result = self.send_request('jobs/%s/tags' % job_id)
-            print('Tags:', result)
-            result = self.send_request('jobs/%s/machine_tags' % job_id)
-            print('Machine Tags:', result)
-            result = self.send_request('jobs/%s/objects_in_field' % job_id)
-            print('Objects in field:', result)
-            result = self.send_request('jobs/%s/annotations' % job_id)
-            print('Annotations:', result)
-            result = self.send_request('jobs/%s/info' % job_id)
-            print('Calibration:', result)
+        # if stat == 'success':
+            # result = self.send_request('jobs/%s/calibration' % job_id)
+            # print('Calibration:', result)
+            #result = self.send_request('jobs/%s/tags' % job_id)
+            #print('Tags:', result)
+            #result = self.send_request('jobs/%s/machine_tags' % job_id)
+            #print('Machine Tags:', result)
+            #result = self.send_request('jobs/%s/objects_in_field' % job_id)
+            #print('Objects in field:', result)
+            #result = self.send_request('jobs/%s/annotations' % job_id)
+            #print('Annotations:', result)
+            #result = self.send_request('jobs/%s/info' % job_id)
+            #print('Calibration:', result)
 
         return stat
+
+    def job_calib_result(self, job_id):
+        result = self.send_request('jobs/%s/calibration' % job_id)
+        print('Calibration:', result)
+
+        return result
 
     def sub_status(self, sub_id, justdict=False):
         result = self.send_request('submissions/%s' % sub_id)
@@ -251,7 +263,7 @@ class Client(object):
         return result
 
 def read_FITS_header(fname):
-    
+
     hdulist = pyfits.open(fname)
     prihdr = hdulist[0].header
 
@@ -266,33 +278,42 @@ def read_FITS_header(fname):
         dateobs = time.strftime("%Y-%m-%dT%H:%M:%S")
 
     print("DATE-OBS", dateobs)
-    
-    
+
+def convert_ra_deg_to_hour(ra_deg):
+    hour = int(ra_deg/15.0)
+    frac = (ra_deg - hour*15.0)/15.0
+
+    print("hour", hour)
+    print("frac", frac)
+
+    return hour+frac
 
 if __name__ == '__main__':
 
     c = Client()
-    c.login('***REMOVED***')  
-    
+    c.login('***REMOVED***')
+
     scale_lower = 0.8
     scale_upper = 1.2
     sub_id = None
     solved_id = None
-    
+
     upres = c.upload('Focus.fit')
     print(upres)
-    
+
     if upres['status'] != 'success':
         print('upload failed!')
         print(upres)
         sys.exit(-1)
-       
+
     sub_id = upres['subid']
-    
+
+    print("sub_id=", sub_id)
+
     if sub_id is not None:
         while True:
             stat = c.sub_status(sub_id, justdict=True)
-            print('Got status:', stat)
+            print('Got sub status:', stat)
             jobs = stat.get('jobs', [])
             if len(jobs):
                 for j in jobs:
@@ -302,41 +323,110 @@ if __name__ == '__main__':
                     print('Selecting job id', j)
                     solved_id = j
                     break
-            time.sleep(5)     
+            time.sleep(5)
+
+
+    while True:
+        job_stat = c.job_status(solved_id)
+
+        print("job_stat", job_stat)
+
+        if job_stat == 'success':
+            break
+
+        time.sleep(5)
 
     final = c.job_status(solved_id)
-    
-    if final['status'] != 'success':
+
+    print("final job status =", final)
+
+    if final != 'success':
         print("Plate solve failed!")
         print(final)
         sys.exit(-1)
-    
+
+    final_calib = c.job_calib_result(solved_id)
+    print("final_calib=", final_calib)
+
     # setup telescope
-    tel = win32com.client.Dispatch("AstroPhysicsV2.Telescope")
+    #tel = win32com.client.Dispatch("AstroPhysicsV2.Telescope")
+    tel = win32com.client.Dispatch("ASCOM.Simulator.Telescope")
+    
     if tel.Connected:
-        print((	->Telescope was already connected")
+        print("	->Telescope was already connected")
     else:
         tel.Connected = True
         if tel.Connected:
             print("	Connected to telescope now")
         else:
             print("	Unable to connect to telescope, expect exception")
-    
+
+    # telescope RA is in HOURS and DEC in degrees in JNOW!
     cur_ra  = tel.RightAscension
     cur_dec = tel.Declination
-    
+
+    time_now = Time(datetime.utcnow(), scale='utc')
+
+    curpos = SkyCoord(ra=cur_ra*u.hour, dec=cur_dec*u.degree, frame='fk5', equinox=Time(time_now.jd, format="jd", scale="utc"))
+
+    # solved RA is in DEGREES (we convert to hours) and DEC in DEGREES in J2000!
+    solved_ra = convert_ra_deg_to_hour(final_calib['ra'])
+    solved_dec = final_calib['dec']
+
+    solved = SkyCoord(ra=solved_ra*u.hour, dec=solved_dec*u.degree, frame='fk5', equinox='J2000')
+
     print("Telescope RA  =", cur_ra )
     print("Telescope DEC =", cur_dec)
-    print("Solved    RA  =", final['ra'])
-    print("Solved    DEC =", final['dec'])
-    
-    delta_ra = final['ra'] - cur_ra
-    delta_dec = final['dec'] - cur_dec
-    
-    print("Delta     RA  =", delta_ra)
-    print("Delta     DEC =", delta_dec)
-    
+    print("Solved    RA  =", solved_ra)
+    print("Solved    DEC =", solved_dec)
+
+    print("Telescope pos (Jnow) =", curpos.to_string('hmsdms'))
+    print("Solved    pos (J2000)=", solved.to_string('hmsdms'))
+
+    # precess solved J2000 pos to JNOW
+    solved_jnow = solved.transform_to(FK5(equinox=Time(time_now.jd, format="jd", scale="utc")))
+
+    print("Solved    pos (Jnow) =", solved_jnow.to_string('hmsdms'))
+
+    print("Solved    pos (Jnow) =", solved_jnow.ra.hour, solved_jnow.dec.degree)
+
+    # delta_ra = solved_ra - cur_ra
+    # delta_dec = solved_dec - cur_dec
+
+    # print("Delta     RA  =", delta_ra)
+    # print("Delta     DEC =", delta_dec)
+
+    sep = solved_jnow.separation(curpos)
+
+    print("delta=", sep.degree, " degrees")
+
+    ans = input("Press y to sync: ")
+
+    if ans == 'y':
+        doit = False
+        if sep.degree > 10:
+             ans2 = input("Error is > 10 deg - are you sure (enter YES)? ")
+             if ans2 == 'YES':
+                doit = True
+        elif sep.degree > 2:
+            ans2 = input("Error is > 2 deg - are you sure (enter y)? ")
+
+            if ans2 == 'y':
+                doit = True
+        else:
+            doit = True
+
+        if doit:
+            print("SYNCING")
+            rc = tel.SyncToCoordinates(solved_jnow.ra.hour, solved_jnow.dec.degree)
+            print("rc=", rc)
+        else:
+            print("NOT SYNCING!")
+
+        sys.exit(0)
+    else:
+        print("NOT SYNCING!")
+        sys.exit(0)
 
 
 
-    
