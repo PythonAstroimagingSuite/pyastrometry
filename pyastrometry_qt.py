@@ -4,7 +4,7 @@ Created on Sat Aug 25 15:26:52 2018
 
 @author: msf
 """
-
+import os
 import sys
 import time
 import json
@@ -332,7 +332,7 @@ class FocusProgressDialog:
 
     def cancelFocusDialog(self):
         self.run_focus_dlg.cancel()
-        
+
 class Telescope:
     def __init__(self):
         pass
@@ -360,6 +360,7 @@ class Telescope:
         return precess_JNOW_to_J2000(pos_jnow)
 
     def sync(self, pos):
+        logging.info(f"Syncing to {pos.ra.hour}  {pos.dec.degree}")
         self.tel.SyncToCoordinates(pos.ra.hour, pos.dec.degree)
 
 class Camera:
@@ -517,35 +518,39 @@ class MyApp(QtWidgets.QMainWindow):
         # convert to jnow
         solved_jnow = precess_J2000_to_JNOW(self.solved_j2000)
 
+        sep = self.solved_j2000.separation(self.tel.get_position_j2000()).degree
+        logging.info(f"Sync pos is {sep} degrees from current pos")
+
         # get confirmation
         yesno = QtWidgets.QMessageBox()
         yesno.setIcon(QtWidgets.QMessageBox.Question)
-        yesno.setInformativeText(f"Do you want to sync the mount?\n\nPostition: {solved_jnow.to_string('hmsdms')}")
+        yesno.setInformativeText(f"Do you want to sync the mount?\n\n" + \
+                                 f"Position (J2000): \n" + \
+                                 f"     {self.solved_j2000.to_string('hmsdms')}\n\n" + \
+                                 f"This is {sep:6.2f} degrees from current position.")
         yesno.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
         result = yesno.exec()
         print(result)
 
         if result == QtWidgets.QMessageBox.Yes:
-            print("YES")
-
             # check if its WAY OFF
-            sep = self.solved_j2000.separation(self.tel.get_position_j2000())
-            logging.info(f"Sync pos is {sep.degree} degrees from current pos")
-
-            if sep.degree > 10:
+            if sep > 10:
                 yesno = QtWidgets.QMessageBox()
                 yesno.setIcon(QtWidgets.QMessageBox.Question)
-                yesno.setInformativeText(f"The sync position is {sep.degree:6.2f} degrees from current position!\nDo you REALLY want to sync the mount?")
+                yesno.setInformativeText(f"The sync position is {sep:6.2f} " + \
+                                         f"degrees from current position!\n" + \
+                                         f"Do you REALLY want to sync the mount?")
                 yesno.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
                 result = yesno.exec()
 
-                if result == QtWidgets.QMessageBox.Yes:
-                    print("YES")
-                    self.tel.sync(solved_jnow)
-                else:
-                    print("NO")
+                if result != QtWidgets.QMessageBox.Yes:
+                    logging.info("User declined to sync mount")
+                    return
+
+            logging.info("Syncing mount")
+            self.tel.sync(solved_jnow)
         else:
-            print("NO")
+            logging.info("User declined to sync mount")
 
     def solve_file_cb(self):
         fname, retcode = QtWidgets.QFileDialog.getOpenFileName(self, "Select file to solve:")
@@ -559,22 +564,32 @@ class MyApp(QtWidgets.QMainWindow):
 
     def solve_image_cb(self):
         logging.info("Taking image")
+        self.ui.statusbar.showMessage("Taking image with camera...")
+        self.app.processEvents()
 
         self.setupCCDFrameBinning()
 
-        self.cam.takeframeCamera(5)
+        focus_expos = 5
+        self.cam.takeframeCamera(focus_expos)
 
         # give things time to happen (?) I get Maxim not ready errors so slowing it down
         time.sleep(0.25)
 
+        elapsed = 0
         while not self.cam.checkexposureCamera():
+            self.ui.statusbar.showMessage(f"Taking image with camera {elapsed} of {focus_expos} seconds")
+            self.app.processEvents()
             time.sleep(0.5)
+            elapsed += 0.5
+            if elapsed > focus_expos:
+                elapsed = focus_expos
 
-        ff = "plate_solve_image.fits"
+        ff = os.path.join(os.getcwd(), "plate_solve_image.fits")
 
         # give it some time seems like Maxim isnt ready if we hit it too fast
         time.sleep(0.5)
 
+        logging.info(f"Saving image to {ff}")
         self.cam.saveimageCamera(ff)
         self.solved_j2000 = self.plate_solve_file(ff)
         self.set_solved_position_labels(self.solved_j2000)
@@ -605,7 +620,7 @@ class MyApp(QtWidgets.QMainWindow):
         self.ui.statusbar.showMessage("Uploading image to astrometry.net...")
         self.app.processEvents()
 
-        upres = self.astroclient.upload('Focus.fit')
+        upres = self.astroclient.upload(fname)
         logging.info(f"upload result = {upres}")
 
         if upres['status'] != 'success':
@@ -690,7 +705,7 @@ class MyApp(QtWidgets.QMainWindow):
         self.ui.statusbar.showMessage("Plate solve succeeded")
         self.app.processEvents()
 
-        solved_j2000 = SkyCoord(ra=final_calib['ra']*u.hour, dec=final_calib['dec']*u.degree, frame='fk5', equinox='J2000')
+        solved_j2000 = SkyCoord(ra=final_calib['ra']*u.degree, dec=final_calib['dec']*u.degree, frame='fk5', equinox='J2000')
 
         return solved_j2000
 
