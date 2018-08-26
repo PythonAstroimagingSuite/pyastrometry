@@ -307,6 +307,32 @@ def parse_command_line():
 
     return args
 
+class FocusProgressDialog:
+    def __init__(self, title_text=None, label_text="", button_text="Cancel", minval=0, maxval=100):
+        self.run_focus_dlg = QtWidgets.QProgressDialog(label_text, button_text, minval, maxval)
+        self.run_focus_dlg.setWindowModality(QtCore.Qt.WindowModal)
+        self.setValues(title_text, label_text, button_text, minval, maxval)
+        self.run_focus_dlg.show()
+
+    def setValues(self, title_text=None, label_text=None, button_text=None, minval=None, maxval=None):
+        if title_text is not None:
+            self.run_focus_dlg.setWindowTitle(title_text)
+        if label_text is not None:
+            self.run_focus_dlg.setLabelText(label_text)
+        if button_text is not None:
+            self.run_focus_dlg.setCancelButtonText(button_text)
+        if minval is not None:
+            self.run_focus_dlg.setMinimum(minval)
+        if maxval is not None:
+            self.run_focus_dlg.setMaximum(maxval)
+
+    def updateFocusDialog(self, val, label_text):
+        self.run_focus_dlg.setLabelText(label_text)
+        self.run_focus_dlg.setValue(val)
+
+    def cancelFocusDialog(self):
+        self.run_focus_dlg.cancel()
+        
 class Telescope:
     def __init__(self):
         pass
@@ -334,7 +360,85 @@ class Telescope:
         return precess_JNOW_to_J2000(pos_jnow)
 
     def sync(self, pos):
-        rc = self.tel.SyncToCoordinates(pos.ra.hour, pos.dec.degree)
+        self.tel.SyncToCoordinates(pos.ra.hour, pos.dec.degree)
+
+class Camera:
+    def __init__(self):
+        pass
+
+    def connectCamera(self, name):
+        import pythoncom
+        pythoncom.CoInitialize()
+        import win32com.client
+        self.cam = win32com.client.Dispatch("MaxIm.CCDCamera")
+        self.cam.LinkEnabled = True
+        self.cam.DisableAutoShutDown = True
+
+        return True
+
+    def takeframeCamera(self, expos):
+        logging.info(f'Exposing image for {expos} seconds')
+
+        self.cam.Expose(expos, 1, -1)
+
+        return True
+
+    def checkexposureCamera(self):
+        return self.cam.ImageReady
+
+    def saveimageCamera(self, path):
+        # FIXME make better temp name
+        # FIXME specify cwd as path for file - otherwise not sure where it goes!
+        logging.info(f"saveimageCamera: saving to {path}")
+
+        try:
+            self.cam.SaveImage(path)
+        except:
+            exc_type, exc_value = sys.exc_info()[:2]
+            logging.info('saveimageCamera %s exception with message "%s"' % \
+                              (exc_type.__name__, exc_value))
+            logging.error(f"Error saving {path} in saveimageCamera()!")
+            return False
+
+        return True
+
+    def closeimageCamera(self):
+        # not all backends need this
+        # MAXIM does
+        if self.mainThread:
+            # import win32com.client
+            # app = win32com.client.Dispatch("MaxIm.Application")
+            # app.CurrentDocument.Close
+
+            # alt way
+            self.cam.Document.Close
+        else:
+            # in other threads this is a noop
+            pass
+
+
+    def getbinningCamera(self):
+        return (self.cam.BinX, self.cam.BinY)
+
+    def setbinningCamera(self, binx, biny):
+        self.cam.BinX = binx
+        self.cam.BinY = biny
+
+        return True
+
+    def getsizeCamera(self):
+        return (self.cam.CameraXSize, self.cam.CameraYSize)
+
+    def getframeCamera(self):
+        return(self.cam.StartX, self.cam.StartY, self.cam.NumX, self.cam.NumY)
+
+    def setframeCamera(self, minx, miny, width, height):
+        self.cam.StartX = minx
+        self.cam.StartY = miny
+        self.cam.NumX = width
+        self.cam.NumY = height
+
+        return True
 
 class MyApp(QtWidgets.QMainWindow):
     def __init__(self, app, args):
@@ -352,12 +456,17 @@ class MyApp(QtWidgets.QMainWindow):
         self.tel.connect_to_telescope(self.args.telescope)
         self.ui.telescope_driver_label.setText(self.args.telescope)
 
+        # connect to camera
+        self.cam = Camera()
+        self.cam.connectCamera('MaximDL')
+
         # connect to astrometry.net
         self.astroclient = Client()
         self.astroclient.login('***REMOVED***')
 
         self.ui.solve_file_button.clicked.connect(self.solve_file_cb)
         self.ui.sync_pos_button.clicked.connect(self.sync_pos_cb)
+        self.ui.solve_image_button.clicked.connect(self.solve_image_cb)
 
         # init vars
         self.solved_j2000 = None
@@ -448,6 +557,46 @@ class MyApp(QtWidgets.QMainWindow):
         self.solved_j2000 = self.plate_solve_file(fname)
         self.set_solved_position_labels(self.solved_j2000)
 
+    def solve_image_cb(self):
+        logging.info("Taking image")
+
+        self.setupCCDFrameBinning()
+
+        self.cam.takeframeCamera(5)
+
+        # give things time to happen (?) I get Maxim not ready errors so slowing it down
+        time.sleep(0.25)
+
+        while not self.cam.checkexposureCamera():
+            time.sleep(0.5)
+
+        ff = "plate_solve_image.fits"
+
+        # give it some time seems like Maxim isnt ready if we hit it too fast
+        time.sleep(0.5)
+
+        self.cam.saveimageCamera(ff)
+        self.solved_j2000 = self.plate_solve_file(ff)
+        self.set_solved_position_labels(self.solved_j2000)
+
+    def setupCCDFrameBinning(self):
+        # set camera dimensions to full frame and 1x1 binning
+        (maxx, maxy) = self.cam.getsizeCamera()
+        logging.info("Sensor size is %d x %d", maxx, maxy)
+
+        width = maxx
+        height = maxy
+
+        self.cam.setframeCamera(0, 0, width, height)
+
+        xbin = 2
+        ybin = 2
+
+        self.cam.setbinningCamera(xbin, ybin)
+
+        logging.info("CCD size: %d x %d ", width, height)
+        logging.info("CCD bin : %d x %d ", xbin, ybin)
+
     def plate_solve_file(self, fname):
 
         # FIXME activity progress bar doesnt work and is too big!
@@ -482,7 +631,7 @@ class MyApp(QtWidgets.QMainWindow):
                 msgstr = "Checking job status"
                 for i in range(0, loop_count % 4):
                     msgstr = msgstr + '.'
-                if (loop_count % 5) == 0:                    
+                if (loop_count % 5) == 0:
                     logging.info(msgstr)
                 self.ui.statusbar.showMessage("Upload successful - " + msgstr)
                 self.app.processEvents()
