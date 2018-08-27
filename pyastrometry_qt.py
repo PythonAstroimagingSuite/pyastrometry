@@ -853,7 +853,7 @@ class MyApp(QtWidgets.QMainWindow):
             logging.info("User cancelled GOTO!")
             return
 
-        self.tel.goto(target)
+        self.tel.goto(precess_J2000_to_JNOW(target))
 
         logging.info("goto started!")
 
