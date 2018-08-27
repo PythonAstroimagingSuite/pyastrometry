@@ -6,16 +6,16 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>329</width>
-    <height>415</height>
+    <width>339</width>
+    <height>556</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>MainWindow</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <layout class="QFormLayout" name="formLayout">
-    <item row="0" column="0">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
      <widget class="QGroupBox" name="groupBox_3">
       <property name="title">
        <string>Telescope</string>
@@ -38,7 +38,7 @@
       </layout>
      </widget>
     </item>
-    <item row="1" column="0">
+    <item>
      <widget class="QGroupBox" name="groupBox">
       <property name="title">
        <string>Current Position</string>
@@ -103,15 +103,19 @@
       </layout>
      </widget>
     </item>
-    <item row="3" column="0">
-     <layout class="QGridLayout" name="gridLayout_4"/>
-    </item>
-    <item row="2" column="0" colspan="2">
+    <item>
      <widget class="QGroupBox" name="groupBox_2">
       <property name="title">
        <string>Plate Solve</string>
       </property>
       <layout class="QGridLayout" name="gridLayout_2">
+       <item row="6" column="1">
+        <widget class="QPushButton" name="sync_pos_button">
+         <property name="text">
+          <string>Sync</string>
+         </property>
+        </widget>
+       </item>
        <item row="1" column="0">
         <widget class="QLabel" name="label_7">
          <property name="text">
@@ -168,28 +172,7 @@
          </property>
         </widget>
        </item>
-       <item row="6" column="0">
-        <widget class="QPushButton" name="solve_image_button">
-         <property name="text">
-          <string>Solve Image</string>
-         </property>
-        </widget>
-       </item>
-       <item row="5" column="0">
-        <widget class="QPushButton" name="solve_file_button">
-         <property name="text">
-          <string>Solve File</string>
-         </property>
-        </widget>
-       </item>
-       <item row="5" column="1">
-        <widget class="QPushButton" name="sync_pos_button">
-         <property name="text">
-          <string>Sync</string>
-         </property>
-        </widget>
-       </item>
-       <item row="4" column="0" colspan="2">
+       <item row="5" column="0" colspan="2">
         <spacer name="horizontalSpacer">
          <property name="orientation">
           <enum>Qt::Horizontal</enum>
@@ -205,6 +188,149 @@
          </property>
         </spacer>
        </item>
+       <item row="7" column="0">
+        <widget class="QPushButton" name="solve_image_button">
+         <property name="text">
+          <string>Solve Image</string>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="0">
+        <widget class="QPushButton" name="solve_file_button">
+         <property name="text">
+          <string>Solve File</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QLabel" name="label_10">
+         <property name="text">
+          <string>Angle</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <widget class="QLabel" name="solve_roll_angle_label">
+         <property name="text">
+          <string>---</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QGroupBox" name="groupBox_4">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="title">
+       <string>Target Position</string>
+      </property>
+      <layout class="QGridLayout" name="gridLayout_5">
+       <item row="0" column="1">
+        <widget class="QPlainTextEdit" name="target_ra_j2000_entry">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>200</width>
+           <height>25</height>
+          </size>
+         </property>
+         <property name="verticalScrollBarPolicy">
+          <enum>Qt::ScrollBarAlwaysOff</enum>
+         </property>
+         <property name="horizontalScrollBarPolicy">
+          <enum>Qt::ScrollBarAlwaysOff</enum>
+         </property>
+         <property name="sizeAdjustPolicy">
+          <enum>QAbstractScrollArea::AdjustIgnored</enum>
+         </property>
+         <property name="tabChangesFocus">
+          <bool>true</bool>
+         </property>
+         <property name="lineWrapMode">
+          <enum>QPlainTextEdit::NoWrap</enum>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_11">
+         <property name="text">
+          <string>Target DEC (J2000)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QPlainTextEdit" name="target_dec_j2000_entry">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>200</width>
+           <height>25</height>
+          </size>
+         </property>
+         <property name="verticalScrollBarPolicy">
+          <enum>Qt::ScrollBarAlwaysOff</enum>
+         </property>
+         <property name="horizontalScrollBarPolicy">
+          <enum>Qt::ScrollBarAlwaysOff</enum>
+         </property>
+         <property name="tabChangesFocus">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QPushButton" name="target_goto_button">
+         <property name="text">
+          <string>Goto</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_13">
+         <property name="text">
+          <string>Target  RA (J2000)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0" colspan="2">
+        <spacer name="horizontalSpacer_2">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeType">
+          <enum>QSizePolicy::Fixed</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>10</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item row="3" column="0">
+        <widget class="QPushButton" name="target_use_solved_button">
+         <property name="text">
+          <string>Use Solved</string>
+         </property>
+        </widget>
+       </item>
       </layout>
      </widget>
     </item>
@@ -215,7 +341,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>329</width>
+     <width>339</width>
      <height>21</height>
     </rect>
    </property>

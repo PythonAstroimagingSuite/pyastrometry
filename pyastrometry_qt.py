@@ -333,6 +333,55 @@ class FocusProgressDialog:
     def cancelFocusDialog(self):
         self.run_focus_dlg.cancel()
 
+class Pinpoint:
+    def __init__(self, catalog_path):
+        logging.info("FIXME Need to make pinpoint params NOT hard coded!!")
+        self.SigmaAboveMean = 2.0      # Amount above noise : default = 4.0
+        self.minimumBrightness = 1000     # Minimum star brightness: default = 200
+        self.CatalogMaximumMagnitude = 12.5     #Maximum catalog magnitude: default = 20.0
+        self.CatalogExpansion = 0.3      # Area expansion of catalog to account for misalignment: default = 0.3
+        self.MinimumStarSize = 2        # Minimum star size in pixels: default = 2
+        self.Catalog = 3        # GSC-ACT; accurate and easy to use
+        self.CatalogPath = catalog_path         #"N:\\Astronomy\\GSCDATA\\GSC"
+
+        # setup PinPoint
+        self.pinpoint = win32com.client.Dispatch("PinPoint.Plate")
+        self.pinpoint.SigmaAboveMean = self.SigmaAboveMean
+        self.pinpoint.minimumBrightness = self.minimumBrightness
+        self.pinpoint.CatalogMaximumMagnitude = self.CatalogMaximumMagnitude
+        self.pinpoint.CatalogExpansion = self.CatalogExpansion
+        self.pinpoint.MinimumStarSize = self.MinimumStarSize
+        self.pinpoint.Catalog = self.Catalog
+        self.pinpoint.CatalogPath = self.CatalogPath
+
+    def solve(self, fname, curpos, pixscale):
+        self.pinpoint.AttachFITS(fname)
+
+        cur_ra = curpos.ra.degree
+        cur_dec = curpos.dec.degree
+
+        logging.info(f"{cur_ra} {cur_dec}")
+        self.pinpoint.RightAscension = cur_ra
+        self.pinpoint.Declination = cur_dec
+
+        self.pinpoint.ArcSecPerPixelHoriz = pixscale
+        self.pinpoint.ArcSecPerPixelVert  = pixscale
+
+        logging.info('Pinpoint - Finding stars')
+        self.pinpoint.FindImageStars()
+
+        stars = self.pinpoint.ImageStars
+        logging.info(f'Pinpoint - Found {stars.count} image stars')
+
+        self.pinpoint.FindCatalogStars()
+        stars = self.pinpoint.CatalogStars
+
+        logging.info(f'Pinpoint - Found {stars.count} catalog stars')
+        self.pinpoint.Solve()
+
+        logging.info(f"Plate Solve (J2000)  RA: {self.pinpoint.RightAscension}")
+        logging.info(f"                    DEC: {self.pinpoint.Declination}")
+
 class Telescope:
     def __init__(self):
         pass
@@ -359,9 +408,32 @@ class Telescope:
         pos_jnow = self.get_position_jnow()
         return precess_JNOW_to_J2000(pos_jnow)
 
+# These give errors when I try to use them
+#    def get_target_jnow(self):
+#        try:
+#            time_now = Time(datetime.utcnow(), scale='utc')
+#            return SkyCoord(ra=self.tel.TargetRightAscension*u.hour, dec=self.tel.TargetDeclination*u.degree, frame='fk5', equinox=Time(time_now.jd, format="jd", scale="utc"))
+#        except:
+#            logging.info("Error reading target jnow!")
+#            return None
+#
+#    def get_target_j2000(self):
+#        pos_jnow = self.get_target_jnow()
+#        if pos_jnow is not None:
+#            return precess_JNOW_to_J2000(pos_jnow)
+#        else:
+#            return None
+
     def sync(self, pos):
         logging.info(f"Syncing to {pos.ra.hour}  {pos.dec.degree}")
         self.tel.SyncToCoordinates(pos.ra.hour, pos.dec.degree)
+
+    def goto(self, pos):
+        logging.info(f"Goto to {pos.ra.hour}  {pos.dec.degree}")
+        self.tel.SlewToCoordinatesAsync(pos.ra.hour, pos.dec.degree)
+
+    def is_slewing(self):
+        return self.tel.Slewing
 
 class Camera:
     def __init__(self):
@@ -417,7 +489,6 @@ class Camera:
             # in other threads this is a noop
             pass
 
-
     def getbinningCamera(self):
         return (self.cam.BinX, self.cam.BinY)
 
@@ -469,8 +540,20 @@ class MyApp(QtWidgets.QMainWindow):
         self.ui.sync_pos_button.clicked.connect(self.sync_pos_cb)
         self.ui.solve_image_button.clicked.connect(self.solve_image_cb)
 
+        self.ui.target_use_solved_button.clicked.connect(self.target_use_solved_cb)
+        self.ui.target_goto_button.clicked.connect(self.target_goto_cb)
+#        self.ui.target_enter_manual_button.clicked.connect(self.target_enter_manual_cb)
+
         # init vars
-        self.solved_j2000 = None
+        #self.solved_j2000 = None
+
+        self.solved_j2000 = SkyCoord("1h12m43.2s +1d12m43s", frame='fk5', unit=(u.deg, u.hourangle), equinox="J2000")
+        self.set_solved_position_labels(self.solved_j2000)
+
+        self.target_j2000 = None
+
+        # pinpoint
+#        self.pinpoint = Pinpoint("N:\\Astronomy\\GSCDATA\\GSC")
 
         # used for status bar
         self.activity_bar = QtWidgets.QProgressBar()
@@ -484,6 +567,7 @@ class MyApp(QtWidgets.QMainWindow):
 
     def poll_curpos_CB(self):
         self.set_current_position_labels(self.tel.get_position_j2000())
+        #self.set_target_position_labels(self.tel.get_target_j2000())
 
     def show_activity_bar(self):
         self.ui.statusbar.addPermanentWidget(self.activity_bar)
@@ -493,17 +577,25 @@ class MyApp(QtWidgets.QMainWindow):
 
     def set_current_position_labels(self, pos_j2000):
         self.store_skycoord_to_label(pos_j2000, self.ui.cur_ra_j2000_label, self.ui.cur_dec_j2000_label)
-
         pos_jnow = precess_J2000_to_JNOW(pos_j2000)
-
         self.store_skycoord_to_label(pos_jnow, self.ui.cur_ra_jnow_label, self.ui.cur_dec_jnow_label)
 
     def set_solved_position_labels(self, pos_j2000):
         self.store_skycoord_to_label(pos_j2000, self.ui.solve_ra_j2000_label, self.ui.solve_dec_j2000_label)
-
         pos_jnow = precess_J2000_to_JNOW(pos_j2000)
-
         self.store_skycoord_to_label(pos_jnow, self.ui.solve_ra_jnow_label, self.ui.solve_dec_jnow_label)
+
+    def set_target_position_labels(self, pos_j2000):
+        self.ui.target_ra_j2000_entry.setPlainText('  ' + pos_j2000.ra.to_string(u.hour, sep=":", pad=True))
+        self.ui.target_dec_j2000_entry.setPlainText(pos_j2000.dec.to_string(alwayssign=True, sep=":", pad=True))
+
+#        if pos_j2000 is not None:
+#            self.store_skycoord_to_label(pos_j2000, self.ui.target_ra_j2000_label, self.ui.target_dec_j2000_label)
+#            pos_jnow = precess_J2000_to_JNOW(pos_j2000)
+#            self.store_skycoord_to_label(pos_jnow, self.ui.target_ra_jnow_label, self.ui.target_dec_jnow_label)
+#        else:
+#            for l in [self.ui.target_ra_j2000_label, self.ui.target_dec_j2000_label, self.ui.target_ra_jnow_label, self.ui.target_dec_jnow_label]:
+#                l.setText("--:--:--")
 
     def sync_pos_cb(self):
         if self.solved_j2000 is None:
@@ -526,7 +618,7 @@ class MyApp(QtWidgets.QMainWindow):
         yesno.setIcon(QtWidgets.QMessageBox.Question)
         yesno.setInformativeText(f"Do you want to sync the mount?\n\n" + \
                                  f"Position (J2000): \n" + \
-                                 f"     {self.solved_j2000.to_string('hmsdms')}\n\n" + \
+                                 f"     {self.solved_j2000.to_string('hmsdms', sep=':')}\n\n" + \
                                  f"This is {sep:6.2f} degrees from current position.")
         yesno.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
         result = yesno.exec()
@@ -548,6 +640,8 @@ class MyApp(QtWidgets.QMainWindow):
                     return
 
             logging.info("Syncing mount")
+            self.ui.statusbar.showMessage("Synced")
+            self.app.processEvents()             
             self.tel.sync(solved_jnow)
         else:
             logging.info("User declined to sync mount")
@@ -670,7 +764,6 @@ class MyApp(QtWidgets.QMainWindow):
 
                 time.sleep(0.5)
 
-
         self.ui.statusbar.showMessage(f"Job started - id = {solved_id}")
         self.app.processEvents()
 
@@ -710,8 +803,70 @@ class MyApp(QtWidgets.QMainWindow):
         return solved_j2000
 
     def store_skycoord_to_label(self, pos, lbl_ra, lbl_dec):
-        lbl_ra.setText('  ' + pos.ra.to_string(u.hour, pad=True))
-        lbl_dec.setText(pos.dec.to_string(alwayssign=True, pad=True))
+        lbl_ra.setText('  ' + pos.ra.to_string(u.hour, sep=":", pad=True))
+        lbl_dec.setText(pos.dec.to_string(alwayssign=True, sep=":", pad=True))
+
+    def target_use_solved_cb(self):
+        self.target_j2000 = self.solved_j2000
+        self.set_target_position_labels(self.target_j2000)
+
+    def target_goto_cb(self):
+        target_str = self.ui.target_ra_j2000_entry.toPlainText() + " "
+        target_str += self.ui.target_dec_j2000_entry.toPlainText()
+        logging.info(f"target_str = {target_str}")
+
+        try:
+            target = SkyCoord(target_str, unit=(u.hourangle, u.deg))
+        except ValueError:
+            logging.error("Cannot GOTO invalid target POSITION!")
+            err =  QtWidgets.QMessageBox()
+            err.setIcon(QtWidgets.QMessageBox.Critical)
+            err.setInformativeText(f"Invalid target coordinates!")
+            err.setStandardButtons(QtWidgets.QMessageBox.Ok)
+            err.exec()
+            return
+
+#        if target is None:
+#            logging.error("Cannot GOTO no target POSITION!")
+#            err =  QtWidgets.QMessageBox()
+#            err.setIcon(QtWidgets.QMessageBox.Critical)
+#            err.setInformativeText("Cannot GOTO - must enter target position first!")
+#            err.setStandardButtons(QtWidgets.QMessageBox.Ok)
+#            err.exec()
+#            return
+
+        self.target_j2000 = target
+
+        logging.info(f"target = {target}")
+
+        yesno = QtWidgets.QMessageBox()
+        yesno.setIcon(QtWidgets.QMessageBox.Question)
+
+        final_str = target.ra.to_string(u.hour, sep=":", pad=True) + " "
+        final_str += target.dec.to_string(alwayssign=True, sep=":", pad=True)
+
+        yesno.setInformativeText(f"Do you want to slew to the position\n\n" + \
+                                 f"{final_str}")
+        yesno.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+        result = yesno.exec()
+        if result != QtWidgets.QMessageBox.Yes:
+            logging.info("User cancelled GOTO!")
+            return
+
+        self.tel.goto(target)
+
+        logging.info("goto started!")
+
+        while True:
+            self.ui.statusbar.showMessage("Slewing...")
+            self.app.processEvents()
+            logging.info(f"Slewing = {self.tel.is_slewing()}")
+            if not self.tel.is_slewing():
+                logging.info("Slew done!")
+                self.ui.statusbar.showMessage("Slew complete")
+                self.app.processEvents()
+                break
+            time.sleep(1)
 
 
 if __name__ == '__main__':
@@ -731,7 +886,6 @@ if __name__ == '__main__':
     logging.info('pyastrometry_qt starting')
 
     ARGS = parse_command_line()
-
 
     app = QtWidgets.QApplication(sys.argv)
     window = MyApp(app, ARGS)
