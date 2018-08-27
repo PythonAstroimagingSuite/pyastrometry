@@ -580,10 +580,11 @@ class MyApp(QtWidgets.QMainWindow):
         pos_jnow = precess_J2000_to_JNOW(pos_j2000)
         self.store_skycoord_to_label(pos_jnow, self.ui.cur_ra_jnow_label, self.ui.cur_dec_jnow_label)
 
-    def set_solved_position_labels(self, pos_j2000):
+    def set_solved_position_labels(self, pos_j2000, angle):
         self.store_skycoord_to_label(pos_j2000, self.ui.solve_ra_j2000_label, self.ui.solve_dec_j2000_label)
         pos_jnow = precess_J2000_to_JNOW(pos_j2000)
         self.store_skycoord_to_label(pos_jnow, self.ui.solve_ra_jnow_label, self.ui.solve_dec_jnow_label)
+        self.ui.solve_roll_angle_label.setText(f"{angle:6.2}")
 
     def set_target_position_labels(self, pos_j2000):
         self.ui.target_ra_j2000_entry.setPlainText('  ' + pos_j2000.ra.to_string(u.hour, sep=":", pad=True))
@@ -653,8 +654,8 @@ class MyApp(QtWidgets.QMainWindow):
             logging.warning("solve_file_cb: User aborted file open")
             return
 
-        self.solved_j2000 = self.plate_solve_file(fname)
-        self.set_solved_position_labels(self.solved_j2000)
+        (self.solved_j2000, self.solved_angle) = self.plate_solve_file(fname)
+        self.set_solved_position_labels(self.solved_j2000, self.solved_angle)
 
     def solve_image_cb(self):
         logging.info("Taking image")
@@ -685,8 +686,8 @@ class MyApp(QtWidgets.QMainWindow):
 
         logging.info(f"Saving image to {ff}")
         self.cam.saveimageCamera(ff)
-        self.solved_j2000 = self.plate_solve_file(ff)
-        self.set_solved_position_labels(self.solved_j2000)
+        (self.solved_j2000, self.solved_angle) = self.plate_solve_file(ff)
+        self.set_solved_position_labels(self.solved_j2000, self.solved_angle)
 
     def setupCCDFrameBinning(self):
         # set camera dimensions to full frame and 1x1 binning
@@ -800,7 +801,7 @@ class MyApp(QtWidgets.QMainWindow):
 
         solved_j2000 = SkyCoord(ra=final_calib['ra']*u.degree, dec=final_calib['dec']*u.degree, frame='fk5', equinox='J2000')
 
-        return solved_j2000
+        return (solved_j2000, final_calib['orientation'])
 
     def store_skycoord_to_label(self, pos, lbl_ra, lbl_dec):
         lbl_ra.setText('  ' + pos.ra.to_string(u.hour, sep=":", pad=True))
