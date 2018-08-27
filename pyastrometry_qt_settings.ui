@@ -61,7 +61,11 @@
        </widget>
       </item>
       <item row="2" column="2" colspan="2">
-       <widget class="QSpinBox" name="platesolve2_num_regions_spinbox"/>
+       <widget class="QSpinBox" name="platesolve2_num_regions_spinbox">
+        <property name="maximum">
+         <number>999</number>
+        </property>
+       </widget>
       </item>
       <item row="3" column="2" colspan="2">
        <widget class="QSpinBox" name="platesolve2_waittime_spinbox"/>
@@ -111,7 +115,11 @@
        </widget>
       </item>
       <item row="0" column="1">
-       <widget class="QSpinBox" name="astrometry_timeout_spinbox"/>
+       <widget class="QSpinBox" name="astrometry_timeout_spinbox">
+        <property name="maximum">
+         <number>999</number>
+        </property>
+       </widget>
       </item>
       <item row="0" column="2">
        <widget class="QLabel" name="label_7">
