@@ -816,7 +816,7 @@ class MyApp(QtWidgets.QMainWindow):
         logging.info(f"target_str = {target_str}")
 
         try:
-            target = SkyCoord(target_str, unit=(u.hourangle, u.deg))
+            target = SkyCoord(target_str, unit=(u.hourangle, u.deg), frame='fk5', equinox='J2000')
         except ValueError:
             logging.error("Cannot GOTO invalid target POSITION!")
             err =  QtWidgets.QMessageBox()
