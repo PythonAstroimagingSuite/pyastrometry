@@ -12,6 +12,7 @@ import argparse
 import logging
 import subprocess
 from datetime import datetime
+from configobj import ConfigObj
 
 try:
     # py3
@@ -42,6 +43,7 @@ import win32com.client      #needed to load COM objects
 
 from PyQt5 import QtCore, QtWidgets
 from pyastrometry_qt_uic import Ui_MainWindow
+from pyastrometry_qt_settings_uic import Ui_Dialog as Ui_SettingsDialog
 
 
 def json2python(data):
@@ -175,25 +177,25 @@ class Client(object):
     def _get_upload_args(self, **kwargs):
         args = {}
         for key, default, typ in [('allow_commercial_use', 'd', str),
-                                ('allow_modifications', 'd', str),
-                                ('publicly_visible', 'y', str),
-                                ('scale_units', None, str),
-                                ('scale_type', None, str),
-                                ('scale_lower', None, float),
-                                ('scale_upper', None, float),
-                                ('scale_est', None, float),
-                                ('scale_err', None, float),
-                                ('center_ra', None, float),
-                                ('center_dec', None, float),
-                                ('parity', None, int),
-                                ('radius', None, float),
-                                ('downsample_factor', None, int),
-                                ('tweak_order', None, int),
-                                ('crpix_center', None, bool),
-                                ('x', None, list),
-                                ('y', None, list),
-            # image_width, image_height
-                                ]:
+                                  ('allow_modifications', 'd', str),
+                                  ('publicly_visible', 'y', str),
+                                  ('scale_units', None, str),
+                                  ('scale_type', None, str),
+                                  ('scale_lower', None, float),
+                                  ('scale_upper', None, float),
+                                  ('scale_est', None, float),
+                                  ('scale_err', None, float),
+                                  ('center_ra', None, float),
+                                  ('center_dec', None, float),
+                                  ('parity', None, int),
+                                  ('radius', None, float),
+                                  ('downsample_factor', None, int),
+                                  ('tweak_order', None, int),
+                                  ('crpix_center', None, bool),
+                                  ('x', None, list),
+                                  ('y', None, list),
+                                  # image_width, image_height
+                                 ]:
             if key in kwargs:
                 val = kwargs.pop(key)
                 val = typ(val)
@@ -307,6 +309,51 @@ def read_radec_from_FITS(fname):
 
     return radec
 
+def read_image_info_from_FITS(fname):
+    """Read RA/DEC coordinate from a FITS file header
+
+    Parameters
+    ----------
+    fname - str
+        Name of FITS file
+
+    Returns
+    -------
+    width, height : int
+        Width/height of image.
+    bining_x, binning_y : int
+        Binning along X/Y axis
+    """
+    try:
+        hdulist = pyfits.open(fname)
+    except Exception as err:
+        logging.error(f"read_image_info_from_FITS: error opening {fname} - {err}")
+        return None
+
+    prihdr = None
+    try:
+        prihdr = hdulist[0].header
+    except Exception as err:
+        logging.error(f"read_image_info_from_FITS: error opening {fname} - {err}")
+
+    hdulist.close()
+    if prihdr is None:
+        return None
+
+    keys = ['NAXIS1', 'NAXIS2', 'XBINNING', 'YBINNING']
+    retval = ()
+
+    for k in keys:
+        try:
+            retval = retval + (int(prihdr[k]),)
+        except:
+            logging.error(f"read_image_info_from_FITS: error reading key {k} from file {fname}")
+            return None
+
+    logging.info(f"read_image_info_from_FITS: {retval}")
+
+    return retval
+
 #def convert_ra_deg_to_hour(ra_deg):
 #    hour = int(ra_deg/15.0)
 #    frac = (ra_deg - hour*15.0)/15.0
@@ -416,7 +463,9 @@ class PlateSolve2:
         """
         self.exec_path = exec_path
 
-    def solve_file(self, fname, radec, fov_x, fov_y, nfields=99, wait=1):
+    #def solve_file(self, fname, radec, fov_x, fov_y, nfields=99, wait=1):
+
+    def solve_file(self, fname, solve_params, nfields=99, wait=1):
         """ Plate solve the specified file using PlateSolve2
 
         Parameters
@@ -444,10 +493,10 @@ class PlateSolve2:
             Position angle of Y axis expressed as East of North.
         """
 
-        cmd_line = f'{radec.ra.radian},'
-        cmd_line += f'{radec.dec.radian},'
-        cmd_line += f'{fov_x.radian},'
-        cmd_line += f'{fov_y.radian},'
+        cmd_line = f'{solve_params.radec.ra.radian},'
+        cmd_line += f'{solve_params.radec.dec.radian},'
+        cmd_line += f'{solve_params.fov_x.radian},'
+        cmd_line += f'{solve_params.fov_y.radian},'
         cmd_line += f'{nfields},'
         cmd_line += fname + ','
         cmd_line += f'{wait}'
@@ -546,7 +595,7 @@ class Pinpoint:
         self.pinpoint.Declination = cur_dec
 
         self.pinpoint.ArcSecPerPixelHoriz = pixscale
-        self.pinpoint.ArcSecPerPixelVert  = pixscale
+        self.pinpoint.ArcSecPerPixelVert = pixscale
 
         logging.info('Pinpoint - Finding stars')
         self.pinpoint.FindImageStars()
@@ -620,7 +669,7 @@ class Camera:
     def __init__(self):
         pass
 
-    def connectCamera(self, name):
+    def connectCamera(self):
         import pythoncom
         pythoncom.CoInitialize()
         import win32com.client
@@ -676,7 +725,6 @@ class Camera:
     def setbinningCamera(self, binx, biny):
         self.cam.BinX = binx
         self.cam.BinY = biny
-
         return True
 
     def getsizeCamera(self):
@@ -696,21 +744,54 @@ class Camera:
 class PlateSolveParameters:
     """Contains parameters needed to prime a plate solve engine"""
 
-    def __init__(self, pixel_scale, fov_x, fov_y):
-        """Creates object contains plate solve parameters
+    def __init__(self):
+        """Creates object contains plate solve parameters"""
+        self.pixel_scale = None
+        self.radec = None
+        self.fov_x = None
+        self.fov_y = None
 
-        Parameters
-        ----------
-        pixel_scale : float
-            Pixel scale of image in arc-seconds/pixel
-        fov_x : Angle
-            Field of view of image along X axis
-        fov_y : Angle
-            Field of view of image along Y axis
-        """
-        self.pixel_scale = pixel_scale
-        self.fov_x = fov_x
-        self.fov_y = fov_y
+#    def set_fov(self, fov_x, fov_y):
+#        """Set the fov specification for plate solver.
+#
+#        Parameters
+#        ----------
+#
+#        fov_x : Angle
+#            Field of view of image along X axis
+#        fov_y : Angle
+#            Field of view of image along Y axis
+#        """
+#        self.fov_x = fov_x
+#        self.fov_y = fov_y
+#
+#    def set_pixel_scale(self, scale):
+#        """Set the pixel scale specification for plate solver.
+#
+#        Parameters
+#        ----------
+#        pixel_scale : float
+#            Pixel scale of image in arc-seconds/pixel
+#        """
+#        self.pixel_scale = scale
+#
+#    def set_radec(self, radec):
+#        """Set the center RA/DEC estimate for plate solver.
+#
+#        Parameters
+#        ----------
+#        pixel_scale : float
+#            Pixel scale of image in arc-seconds/pixel
+#        """
+#        self.radec = radec
+#
+#    def __str__(self):
+#        retstr = f"radec: {self.radec.to_string('hmsdms', sep=':')} " + \
+#                 f"fov: {self.fov_x} x {self.fov_y} " + \
+#                 f"pixel_scale: {self.pixel_scale}"
+#
+#        return retstr
+
 
 class PlateSolveSolution:
     """Stores solution from plate solve engine"""
@@ -730,6 +811,95 @@ class PlateSolveSolution:
         self.pixel_scale = pixel_scale
         self.angle = angle
 
+class ProgramSettings:
+    """Stores program settings which can be saved persistently"""
+    def __init__(self):
+        """Set some defaults for program settings"""
+        self._config = ConfigObj(unrepr=True, file_error=True, raise_errors=True)
+        self._config.filename = self._get_config_filename()
+
+        self.pixel_scale_arcsecpx = 1.0
+        self.platesolve2_location = "PlateSolve2.exe"
+        self.platesolve2_regions = 999
+        self.platesolve2_wait_time = 10
+        self.astrometry_timeout = 90
+
+
+        # FIXME this isnt right way to do defaults with ConfigObj
+#        self.config['pixel_scale_arcsecpx'] = 1.0
+#        self.config['platesolve2_location'] = ""
+#        self.config['platesolve2_regions'] = 999
+#        self.config['platesolve2_wait_time'] = 10
+#        self.config['astrometry_timeout'] = 90
+
+    # FIXME not sure best way to setup these attributes
+#    pixel_scale_arcsecpx = self.config['pixel_scale_arcsecpx']
+#    platesolve2_location = self.config['platesolve2_location']
+#    platesolve2_regions = self.config['platesolve2_regions']
+#    platesolve2_wait_time = self.config['platesolve2_wait_time']
+#    astrometry_timeout = self.config['astrometry_timeout']
+
+    # FIXME This will break HORRIBLY unless passed an attribute already
+    #       in the ConfigObj dictionary
+    #
+    def __getattr__(self, attr):
+        logging.info(f'{self.__dict__}')
+        if not attr.startswith('_'):
+            return self._config[attr]
+        else:
+            return super().__getattribute__(attr)
+
+    def __setattr__(self, attr, value):
+        logging.info(f'setattr: {attr} {value}')
+        if not attr.startswith('_'):
+            self._config[attr] = value
+        else:
+            super().__setattr__(attr, value)
+
+    def _get_config_dir(self):
+        # by default config file in .config/pyfocusstars directory under home directory
+        homedir = os.path.expanduser("~")
+        return os.path.join(homedir, ".config", "pyastrometry")
+
+    def _get_config_filename(self):
+        return os.path.join(self._get_config_dir(), 'default.ini')
+
+    def write(self):
+        # NOTE will overwrite existing without warning!
+        logging.debug(f'Configuration files stored in {self._get_config_dir()}')
+#        self.config['pixel_scale_arcsec'] = self.pixel_scale_arcsecpx
+#        config['platesolve2_location'] = self.platesolve2_location
+#        config['platesolve2_regions'] = self.platesolve2_regions
+#        config['platesolve2_wait_time'] = self.platesolve2_wait_time
+#        config['astrometry_timeout'] = self.astrometry_timeout
+
+        # check if config directory exists
+        if not os.path.isdir(self._get_config_dir()):
+            if os.path.exists(self._get_config_dir()):
+                logging.error(f'write settings: config dir {self._get_config_dir()}' + \
+                              f' already exists and is not a directory!')
+                return False
+            else:
+                logging.info('write settings: creating config dir {self._get_config_dir()}')
+                os.mkdir(self._get_config_dir())
+
+        logging.info(f'{self._config.filename}')
+        self._config.write()
+
+    def read(self):
+        try:
+            config = ConfigObj(self._get_config_filename(), unrepr=True,
+                               file_error=True, raise_errors=True)
+        except:
+            config = None
+
+        if config is None:
+            logging.error('failed to read config file!')
+            return False
+
+        self._config = config
+        return True
+
 class MyApp(QtWidgets.QMainWindow):
     def __init__(self, app, args):
 
@@ -748,7 +918,7 @@ class MyApp(QtWidgets.QMainWindow):
 
         # connect to camera
         self.cam = Camera()
-        self.cam.connectCamera('MaximDL')
+        self.cam.connectCamera()
 
         # connect to astrometry.net
         self.astroclient = Client()
@@ -762,6 +932,8 @@ class MyApp(QtWidgets.QMainWindow):
         self.ui.target_goto_button.clicked.connect(self.target_goto_cb)
 #        self.ui.target_enter_manual_button.clicked.connect(self.target_enter_manual_cb)
 
+        self.ui.plate_solve_setup_button.clicked.connect(self.edit_settings_cb)
+
         # init vars
         self.solved_j2000 = None
 
@@ -770,18 +942,19 @@ class MyApp(QtWidgets.QMainWindow):
 
         self.target_j2000 = None
 
-        # general plate solve parameters
-        # FIXME should be given by user and editable via UI
-        self.plate_solve_params = PlateSolveParameters(pixel_scale=1.0,
-                                                       fov_x=Angle(1.2*u.deg),
-                                                       fov_y=Angle(0.8*u.deg))
+        # FIXME need to store somewhere else
+        self.settings = ProgramSettings()
+        self.settings.read()
+
+        #self.pixel_scale_arcsecpx = 1.0
+        #self.astrometry_downsample_factor = 2
 
         # choice which solver
         # FIXME make user configurable
         self.ui.use_platesolve2_radio_button.setChecked(True)
 
         # platesolve2
-        self.platesolve2 = PlateSolve2('PlateSolve2.exe')
+        self.platesolve2 = PlateSolve2(self.settings.platesolve2_location)
 
         # pinpoint
 #        self.pinpoint = Pinpoint("N:\\Astronomy\\GSCDATA\\GSC")
@@ -818,8 +991,8 @@ class MyApp(QtWidgets.QMainWindow):
         self.ui.solve_roll_angle_label.setText(f"{pos_j2000.angle:6.2}")
 
     def set_target_position_labels(self, pos_j2000):
-        self.ui.target_ra_j2000_entry.setPlainText('  ' + pos_j2000.radec.ra.to_string(u.hour, sep=":", pad=True))
-        self.ui.target_dec_j2000_entry.setPlainText(pos_j2000.radec.dec.to_string(alwayssign=True, sep=":", pad=True))
+        self.ui.target_ra_j2000_entry.setPlainText('  ' + pos_j2000.ra.to_string(u.hour, sep=":", pad=True))
+        self.ui.target_dec_j2000_entry.setPlainText(pos_j2000.dec.to_string(alwayssign=True, sep=":", pad=True))
 
 #        if pos_j2000 is not None:
 #            self.store_skycoord_to_label(pos_j2000, self.ui.target_ra_j2000_label, self.ui.target_dec_j2000_label)
@@ -832,7 +1005,7 @@ class MyApp(QtWidgets.QMainWindow):
     def sync_pos_cb(self):
         if self.solved_j2000 is None:
             logging.error("Cannot SYNC no solved POSITION!")
-            err =  QtWidgets.QMessageBox()
+            err = QtWidgets.QMessageBox()
             err.setIcon(QtWidgets.QMessageBox.Critical)
             err.setInformativeText("Cannot sync mount - must solve position first!")
             err.setStandardButtons(QtWidgets.QMessageBox.Ok)
@@ -879,7 +1052,7 @@ class MyApp(QtWidgets.QMainWindow):
             logging.info("User declined to sync mount")
 
     def solve_file_cb(self):
-        fname, retcode = QtWidgets.QFileDialog.getOpenFileName(self, "Select file to solve:")
+        fname, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select file to solve:")
         logging.info(f"solve_file_cb: User selected file {fname}")
         if len(fname) < 1:
             logging.warning("solve_file_cb: User aborted file open")
@@ -966,35 +1139,46 @@ class MyApp(QtWidgets.QMainWindow):
         self.app.processEvents()
 
         radec_pos = read_radec_from_FITS(fname)
+        img_info = read_image_info_from_FITS(fname)
 
-        if radec_pos is None:
-            logging.error('error reading radec from FITS file')
+        logging.info(f'{img_info}')
+
+        if radec_pos is None or img_info is None:
+            logging.error(f'plate_solve_file_platesolve2: error reading radec from FITS file {radec_pos} {img_info}')
             self.ui.statusbar.showMessage("Error reading FITS file!")
-            err =  QtWidgets.QMessageBox()
+            err = QtWidgets.QMessageBox()
             err.setIcon(QtWidgets.QMessageBox.Critical)
-            err.setInformativeText("Error reading FITS file!")
+            err.setInformativeText('Error reading FITS file!')
             err.setStandardButtons(QtWidgets.QMessageBox.Ok)
             err.exec()
-            return
+            return None
 
-        self.ui.statusbar.showMessage("Starting PlateSolve2")
+        (img_width, img_height, img_binx, img_biny) = img_info
+
+        self.ui.statusbar.showMessage('Starting PlateSolve2')
         self.app.processEvents()
 
-        solved_j2000 = self.platesolve2.solve_file(fname,
-                                                   radec_pos,
-                                                   self.plate_solve_params.fov_x,
-                                                   self.plate_solve_params.fov_y,
-                                                   self.plate_solve_params.pixel_scale)
+        # convert fov from arcsec to degrees
+        solve_params = PlateSolveParameters()
+        fov_x = self.settings.pixel_scale_arcsecpx*img_width*img_binx/3600.0*u.deg
+        fov_y = self.settings.pixel_scale_arcsecpx*img_height*img_biny/3600.0*u.deg
+        solve_params.fov_x = Angle(fov_x)
+        solve_params.fov_y = Angle(fov_y)
+        solve_params.radec = radec_pos
+
+        logging.info(f'plate_solve_file_platesolve2: solve_parms = {solve_params}')
+
+        solved_j2000 = self.platesolve2.solve_file(fname, solve_params)
 
         if solved_j2000 is None:
-            logging.error("Plate solve failed!")
-            self.ui.statusbar.showMessage("Plate solve failed!")
-            err =  QtWidgets.QMessageBox()
+            logging.error('Plate solve failed!')
+            self.ui.statusbar.showMessage('Plate solve failed!')
+            err = QtWidgets.QMessageBox()
             err.setIcon(QtWidgets.QMessageBox.Critical)
-            err.setInformativeText("Plate solve failed!")
+            err.setInformativeText('Plate solve failed!')
             err.setStandardButtons(QtWidgets.QMessageBox.Ok)
             err.exec()
-            return
+            return None
 
         self.ui.statusbar.showMessage("Plate solve succeeded")
         self.app.processEvents()
@@ -1003,15 +1187,29 @@ class MyApp(QtWidgets.QMainWindow):
 
     def plate_solve_file_astrometry(self, fname):
         time_start = time.time()
-        timeout = 60  # timeout in seconds
+        timeout = self.settings.astrometry_timeout
+
+#        timeout = 120  # timeout in seconds
 
         self.ui.statusbar.showMessage("Uploading image to astrometry.net...")
         self.app.processEvents()
 
         kwargs = {}
         kwargs['scale_units'] = 'arcsecperpix'
-        kwargs['scale_est'] = self.plate_solve_params.pixel_scale
-        kwargs['downsample_factor'] = 2
+        kwargs['scale_est'] = self.settings.pixel_scale_arcsecpx
+
+        # if image already binned lets skip having astrometry.net downsample
+        downsample = self.astrometry_downsample_factor
+        img_info = read_image_info_from_FITS(fname)
+        if img_info is None:
+            logging.warning('plate_solve_file_astrometry: couldnt read image info!')
+        else:
+            (_, _, binx, biny) = img_info
+            if binx != 1 and biny != 1:
+                logging.info('plate_solve_file_astrometry: overriding downsample to 1')
+                downsample = 1
+
+        kwargs['downsample_factor'] = downsample
 
         upres = self.astroclient.upload(fname, **kwargs)
         logging.info(f"upload result = {upres}")
@@ -1019,7 +1217,7 @@ class MyApp(QtWidgets.QMainWindow):
         if upres['status'] != 'success':
             logging.error('upload failed!')
             self.ui.statusbar.showMessage("Uploading image failed!!!")
-            err =  QtWidgets.QMessageBox()
+            err = QtWidgets.QMessageBox()
             err.setIcon(QtWidgets.QMessageBox.Critical)
             err.setInformativeText("Error uploading image to astrometry.net!")
             err.setStandardButtons(QtWidgets.QMessageBox.Ok)
@@ -1062,7 +1260,7 @@ class MyApp(QtWidgets.QMainWindow):
                 if time.time() - time_start > timeout:
                     logging.error("astrometry.net solve timeout!")
                     self.ui.statusbar.showMessage("Astrometry.net timeout!")
-                    err =  QtWidgets.QMessageBox()
+                    err = QtWidgets.QMessageBox()
                     err.setIcon(QtWidgets.QMessageBox.Critical)
                     err.setInformativeText("Astrometry.net took too long to respond")
                     err.setStandardButtons(QtWidgets.QMessageBox.Ok)
@@ -1083,7 +1281,7 @@ class MyApp(QtWidgets.QMainWindow):
             if time.time() - time_start > timeout:
                 logging.error("astrometry.net solve timeout!")
                 self.ui.statusbar.showMessage("Astrometry.net timeout!")
-                err =  QtWidgets.QMessageBox()
+                err = QtWidgets.QMessageBox()
                 err.setIcon(QtWidgets.QMessageBox.Critical)
                 err.setInformativeText("Astrometry.net took too long to respond")
                 err.setStandardButtons(QtWidgets.QMessageBox.Ok)
@@ -1100,7 +1298,7 @@ class MyApp(QtWidgets.QMainWindow):
             print("Plate solve failed!")
             print(final)
             self.ui.statusbar.showMessage("Plate solve failed!")
-            err =  QtWidgets.QMessageBox()
+            err = QtWidgets.QMessageBox()
             err.setIcon(QtWidgets.QMessageBox.Critical)
             err.setInformativeText("Plate solve failed!")
             err.setStandardButtons(QtWidgets.QMessageBox.Ok)
@@ -1134,7 +1332,7 @@ class MyApp(QtWidgets.QMainWindow):
             target = SkyCoord(target_str, unit=(u.hourangle, u.deg), frame='fk5', equinox='J2000')
         except ValueError:
             logging.error("Cannot GOTO invalid target POSITION!")
-            err =  QtWidgets.QMessageBox()
+            err = QtWidgets.QMessageBox()
             err.setIcon(QtWidgets.QMessageBox.Critical)
             err.setInformativeText(f"Invalid target coordinates!")
             err.setStandardButtons(QtWidgets.QMessageBox.Ok)
@@ -1183,6 +1381,32 @@ class MyApp(QtWidgets.QMainWindow):
                 break
             time.sleep(1)
 
+    def edit_settings_cb(self):
+        class EditDialog(QtWidgets.QDialog):
+            def __init__(self):
+                QtWidgets.QDialog.__init__(self)
+
+                self.ui = Ui_SettingsDialog()
+                self.ui.setupUi(self)
+
+        dlg = EditDialog()
+        dlg.ui.astrometry_timeout_spinbox.setValue(self.settings.astrometry_timeout)
+        dlg.ui.pixelscale_spinbox.setValue(self.settings.pixel_scale_arcsecpx)
+        dlg.ui.platesolve2_waittime_spinbox.setValue(self.settings.platesolve2_wait_time)
+        dlg.ui.platesolve2_num_regions_spinbox.setValue(self.settings.platesolve2_regions)
+        dlg.ui.platesolve2_exec_path_lbl.setText(self.settings.platesolve2_location)
+        result = dlg.exec_()
+
+        logging.info(f'{result}')
+        if result:
+            self.settings.platesolve2_location = dlg.ui.platesolve2_exec_path_lbl.text()
+            self.settings.platesolve2_regions = dlg.ui.platesolve2_num_regions_spinbox.value()
+            self.settings.platesolve2_wait_time = dlg.ui.platesolve2_waittime_spinbox.value()
+            self.settings.pixel_scale_arcsecpx = dlg.ui.pixelscale_spinbox.value()
+            self.settings.astrometry_timeout = dlg.ui.astrometry_timeout_spinbox.value()
+
+            self.settings.write()
+
 
 if __name__ == '__main__':
     logging.basicConfig(filename='pyastrometry_qt.log',
@@ -1206,6 +1430,3 @@ if __name__ == '__main__':
     window = MyApp(app, ARGS)
     window.show()
     sys.exit(app.exec_())
-
-
-
