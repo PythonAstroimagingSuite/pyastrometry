@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>339</width>
-    <height>556</height>
+    <height>579</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -109,7 +109,7 @@
        <string>Plate Solve</string>
       </property>
       <layout class="QGridLayout" name="gridLayout_2">
-       <item row="6" column="1">
+       <item row="7" column="1">
         <widget class="QPushButton" name="sync_pos_button">
          <property name="text">
           <string>Sync</string>
@@ -188,17 +188,17 @@
          </property>
         </spacer>
        </item>
-       <item row="7" column="0">
+       <item row="8" column="0">
         <widget class="QPushButton" name="solve_image_button">
          <property name="text">
           <string>Solve Image</string>
          </property>
         </widget>
        </item>
-       <item row="6" column="0">
-        <widget class="QPushButton" name="solve_file_button">
+       <item row="4" column="1">
+        <widget class="QLabel" name="solve_roll_angle_label">
          <property name="text">
-          <string>Solve File</string>
+          <string>---</string>
          </property>
         </widget>
        </item>
@@ -209,11 +209,31 @@
          </property>
         </widget>
        </item>
-       <item row="4" column="1">
-        <widget class="QLabel" name="solve_roll_angle_label">
+       <item row="7" column="0">
+        <widget class="QPushButton" name="solve_file_button">
          <property name="text">
-          <string>---</string>
+          <string>Solve File</string>
          </property>
+        </widget>
+       </item>
+       <item row="6" column="0">
+        <widget class="QRadioButton" name="use_astrometry_radio_button">
+         <property name="text">
+          <string>Use astronomtry.net</string>
+         </property>
+         <attribute name="buttonGroup">
+          <string notr="true">platesolver_choise_button_group</string>
+         </attribute>
+        </widget>
+       </item>
+       <item row="6" column="1">
+        <widget class="QRadioButton" name="use_platesolve2_radio_button">
+         <property name="text">
+          <string>Use PlateSolve2</string>
+         </property>
+         <attribute name="buttonGroup">
+          <string notr="true">platesolver_choise_button_group</string>
+         </attribute>
         </widget>
        </item>
       </layout>
@@ -350,4 +370,7 @@
  </widget>
  <resources/>
  <connections/>
+ <buttongroups>
+  <buttongroup name="platesolver_choise_button_group"/>
+ </buttongroups>
 </ui>

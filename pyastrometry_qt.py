@@ -10,6 +10,7 @@ import time
 import json
 import argparse
 import logging
+import subprocess
 from datetime import datetime
 
 try:
@@ -31,10 +32,11 @@ from email.mime.application  import MIMEApplication
 from email.encoders import encode_noop
 
 import astropy.io.fits as pyfits
-from astropy import units as u
 from astropy.time import Time
+from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.coordinates import FK5
+from astropy.coordinates import Angle
 
 import win32com.client      #needed to load COM objects
 
@@ -92,6 +94,9 @@ class Client(object):
             m1 = MIMEBase('text', 'plain')
             m1.add_header('Content-disposition',
                           'form-data; name="request-json"')
+
+            logging.info(f"send_request: {json}")  # MSF
+
             m1.set_payload(json)
             m2 = MIMEApplication(file_args[1], 'octet-stream', encode_noop)
             m2.add_header('Content-disposition',
@@ -265,41 +270,95 @@ class Client(object):
         )
         return result
 
-def read_FITS_header(fname):
+def read_radec_from_FITS(fname):
+    """Read RA/DEC coordinate from a FITS file header
 
+    Parameters
+    ----------
+    fname - str
+        Name of FITS file
+
+    Returns
+    -------
+    radec : SkyCoord
+        RA/DEC read from FITS header - assumes J2000.
+    """
     hdulist = pyfits.open(fname)
     prihdr = hdulist[0].header
+    hdulist.close()
 
     try:
-        dateobs = prihdr["DATE-OBS"]
+        obj_ra_str = prihdr["OBJCTRA"]
     except:
-        dateobs = None
+        return None
 
-    if dateobs is None:
-        # no date just put in now 2017-10-06T04:01:07.058
-        print("No DATE-OBS - putting in current time!")
-        dateobs = time.strftime("%Y-%m-%dT%H:%M:%S")
+    try:
+        obj_dec_str = prihdr["OBJCTDEC"]
+    except:
+        return None
 
-    print("DATE-OBS", dateobs)
+    logging.info(f"read_radec_from_FITS: {obj_ra_str} {obj_dec_str}")
 
-def convert_ra_deg_to_hour(ra_deg):
-    hour = int(ra_deg/15.0)
-    frac = (ra_deg - hour*15.0)/15.0
+    try:
+        radec = SkyCoord(obj_ra_str + ' ' + obj_dec_str, frame='fk5', unit=(u.hourangle, u.deg), equinox='J2000')
+    except Exception as err:
+        logging.error(f"read_radec_from_file: {err}")
+        return None
 
-    print("hour", hour)
-    print("frac", frac)
+    return radec
 
-    return hour+frac
+#def convert_ra_deg_to_hour(ra_deg):
+#    hour = int(ra_deg/15.0)
+#    frac = (ra_deg - hour*15.0)/15.0
+#
+#    print("hour", hour)
+#    print("frac", frac)
+#
+#    return hour+frac
 
 def precess_J2000_to_JNOW(pos_J2000):
+    """Precess J2000 coordinates to JNOW
+
+    Parameters
+    ----------
+    pos_J2000 - SkyCoord
+        J2000 sky coordinate to precess
+
+    Returns
+    -------
+    pos_JNOW : SkyCoord
+        JNow coordinate
+    """
     time_now = Time(datetime.utcnow(), scale='utc')
     return pos_J2000.transform_to(FK5(equinox=Time(time_now.jd, format="jd", scale="utc")))
 
 def precess_JNOW_to_J2000(pos_JNOW):
+    """Precess J2000 coordinates to JNOW
+
+    Parameters
+    ----------
+    pos_JNOW - SkyCoord
+        JNow sky coordinate to precess
+
+    Returns
+    -------
+    pos_J2000 : SkyCoord
+        J2000 coordinate
+    """
     return pos_JNOW.transform_to(FK5(equinox='J2000'))
 
-# returns object containing all parsed command line options
 def parse_command_line():
+    """Parses comand line
+
+    Parameters
+    ----------
+    None
+
+    Returns
+    -------
+    args : argparse.parse_args() return value
+        argparse.parse_args() return value
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument('--telescope', type=str, help="Name of ASCOM driver to use for telescope")
 
@@ -307,31 +366,153 @@ def parse_command_line():
 
     return args
 
-class FocusProgressDialog:
-    def __init__(self, title_text=None, label_text="", button_text="Cancel", minval=0, maxval=100):
-        self.run_focus_dlg = QtWidgets.QProgressDialog(label_text, button_text, minval, maxval)
-        self.run_focus_dlg.setWindowModality(QtCore.Qt.WindowModal)
-        self.setValues(title_text, label_text, button_text, minval, maxval)
-        self.run_focus_dlg.show()
+#class FocusProgressDialog:
+#    def __init__(self, title_text=None, label_text="", button_text="Cancel", minval=0, maxval=100):
+#        self.run_focus_dlg = QtWidgets.QProgressDialog(label_text, button_text, minval, maxval)
+#        self.run_focus_dlg.setWindowModality(QtCore.Qt.WindowModal)
+#        self.setValues(title_text, label_text, button_text, minval, maxval)
+#        self.run_focus_dlg.show()
+#
+#    def setValues(self, title_text=None, label_text=None, button_text=None, minval=None, maxval=None):
+#        if title_text is not None:
+#            self.run_focus_dlg.setWindowTitle(title_text)
+#        if label_text is not None:
+#            self.run_focus_dlg.setLabelText(label_text)
+#        if button_text is not None:
+#            self.run_focus_dlg.setCancelButtonText(button_text)
+#        if minval is not None:
+#            self.run_focus_dlg.setMinimum(minval)
+#        if maxval is not None:
+#            self.run_focus_dlg.setMaximum(maxval)
+#
+#    def updateFocusDialog(self, val, label_text):
+#        self.run_focus_dlg.setLabelText(label_text)
+#        self.run_focus_dlg.setValue(val)
+#
+#    def cancelFocusDialog(self):
+#        self.run_focus_dlg.cancel()
 
-    def setValues(self, title_text=None, label_text=None, button_text=None, minval=None, maxval=None):
-        if title_text is not None:
-            self.run_focus_dlg.setWindowTitle(title_text)
-        if label_text is not None:
-            self.run_focus_dlg.setLabelText(label_text)
-        if button_text is not None:
-            self.run_focus_dlg.setCancelButtonText(button_text)
-        if minval is not None:
-            self.run_focus_dlg.setMinimum(minval)
-        if maxval is not None:
-            self.run_focus_dlg.setMaximum(maxval)
+class PlateSolve2:
+    """A wrapper of the PlateSolve2 stand alone executable which allows
+    plate solving of images.
 
-    def updateFocusDialog(self, val, label_text):
-        self.run_focus_dlg.setLabelText(label_text)
-        self.run_focus_dlg.setValue(val)
+    The PlateSolve2 executable is started for every solve request.  The
+    method blocks until PlateSolve2 completes.  When PlateSolve2 completes
+    it will generate a '.apm' file which contains the result of the
+    plate solve operation.  The contains are parsed and the solution is
+    returned to the caller.
 
-    def cancelFocusDialog(self):
-        self.run_focus_dlg.cancel()
+    It is important that the catalog path(s) are correctly configured in
+    PlateSolve2 or the operation will fail.
+    """
+
+    def __init__(self, exec_path):
+        """Initialize object so it is ready to handle solve requests
+
+        Parameters
+        ----------
+        exec_path : str
+            Path to the PlateSolve2 executable
+        """
+        self.exec_path = exec_path
+
+    def solve_file(self, fname, radec, fov_x, fov_y, nfields=99, wait=1):
+        """ Plate solve the specified file using PlateSolve2
+
+        Parameters
+        ----------
+        fname : str
+            Filename of the file to be solved.
+        radec : SkyCoord
+            RA/DEC of the estimated center of the image `fname`.
+        fov_x : Angle
+            Angular width (field of view) of the image `fname`.
+        fov_y : Angle
+            Angular height (field of view) of the image `fname`.
+        nfields : int
+            Number of fields to search (defaults to 99).
+        wait : int
+            Number of seconds to wait when solve is complete before
+            PlateSolve2 closes its window (defaults to 1 second).
+
+        Returns
+        -------
+        solved_position : SkyCoord:
+            The J2000 sky coordinate of the plate solve match, or None if no
+            match was found.
+        angle : Angle
+            Position angle of Y axis expressed as East of North.
+        """
+
+        cmd_line = f'{radec.ra.radian},'
+        cmd_line += f'{radec.dec.radian},'
+        cmd_line += f'{fov_x.radian},'
+        cmd_line += f'{fov_y.radian},'
+        cmd_line += f'{nfields},'
+        cmd_line += fname + ','
+        cmd_line += f'{wait}'
+
+        print(cmd_line)
+
+        runargs = [self.exec_path, cmd_line]
+
+        #runargs = ['PlateSolve2.exe', '5.67,1.00,0.025,0.017,99,'+fname+',1']
+
+        ps2_proc = subprocess.Popen(runargs,
+                                    stdin=subprocess.PIPE,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    universal_newlines=True)
+        poll_value = None
+        while True:
+            poll_value = ps2_proc.poll()
+
+            if poll_value is not None:
+                break
+
+        (base, ext) = os.path.splitext(fname)
+
+        print(base, ext)
+
+        apm_fname = base + '.apm'
+        try:
+            apm_file = open(apm_fname, 'r')
+        except OSError as err:
+            print(f"Error opening apm file: {err}")
+            return None
+
+        # line 1 contains RA, DEC, XYRatio(?)
+        try:
+            line = apm_file.readline()
+            ra_str, dec_str, _ = line.split(',')
+
+            # line 2 contains the plate scale, angle, ?, ?, ?
+            line = apm_file.readline()
+            scale_str, angle_str, _, _, _ = line.split(',')
+
+            # line 3 reports if the solve was valid or not
+            line = apm_file.readline()
+            solve_OK = 'Valid plate solution' in line
+        except Exception as err:
+            print(f"Error parsing apm file! {err}")
+            return None
+
+        print(ra_str, dec_str, scale_str, angle_str, solve_OK)
+
+        try:
+            solved_ra = float(ra_str)
+            solved_dec = float(dec_str)
+            solved_scale = float(scale_str)
+            solved_angle = float(angle_str)
+        except Exception as err:
+            print(f"Error converting apm string values! {err}")
+            return None
+
+        if solve_OK:
+            radec = SkyCoord(ra=solved_ra*u.radian, dec=solved_dec*u.radian, frame='fk5', equinox='J2000')
+            return PlateSolveSolution(radec, pixel_scale=solved_scale, angle=Angle(solved_angle*u.deg))
+        else:
+            return None
 
 class Pinpoint:
     def __init__(self, catalog_path):
@@ -512,6 +693,43 @@ class Camera:
 
         return True
 
+class PlateSolveParameters:
+    """Contains parameters needed to prime a plate solve engine"""
+
+    def __init__(self, pixel_scale, fov_x, fov_y):
+        """Creates object contains plate solve parameters
+
+        Parameters
+        ----------
+        pixel_scale : float
+            Pixel scale of image in arc-seconds/pixel
+        fov_x : Angle
+            Field of view of image along X axis
+        fov_y : Angle
+            Field of view of image along Y axis
+        """
+        self.pixel_scale = pixel_scale
+        self.fov_x = fov_x
+        self.fov_y = fov_y
+
+class PlateSolveSolution:
+    """Stores solution from plate solve engine"""
+    def __init__(self, radec, pixel_scale, angle):
+        """Create solution object
+
+        Parameters
+        ----------
+        radec : SkyCoord
+            RA/DEC of center of image.
+        pixel_scale : float
+            Pixel scale in arc-seconds/pixel
+        angle : Angle
+            Sky roll angle of image.
+        """
+        self.radec = radec
+        self.pixel_scale = pixel_scale
+        self.angle = angle
+
 class MyApp(QtWidgets.QMainWindow):
     def __init__(self, app, args):
 
@@ -552,6 +770,19 @@ class MyApp(QtWidgets.QMainWindow):
 
         self.target_j2000 = None
 
+        # general plate solve parameters
+        # FIXME should be given by user and editable via UI
+        self.plate_solve_params = PlateSolveParameters(pixel_scale=1.0,
+                                                       fov_x=Angle(1.2*u.deg),
+                                                       fov_y=Angle(0.8*u.deg))
+
+        # choice which solver
+        # FIXME make user configurable
+        self.ui.use_platesolve2_radio_button.setChecked(True)
+
+        # platesolve2
+        self.platesolve2 = PlateSolve2('PlateSolve2.exe')
+
         # pinpoint
 #        self.pinpoint = Pinpoint("N:\\Astronomy\\GSCDATA\\GSC")
 
@@ -580,15 +811,15 @@ class MyApp(QtWidgets.QMainWindow):
         pos_jnow = precess_J2000_to_JNOW(pos_j2000)
         self.store_skycoord_to_label(pos_jnow, self.ui.cur_ra_jnow_label, self.ui.cur_dec_jnow_label)
 
-    def set_solved_position_labels(self, pos_j2000, angle):
-        self.store_skycoord_to_label(pos_j2000, self.ui.solve_ra_j2000_label, self.ui.solve_dec_j2000_label)
-        pos_jnow = precess_J2000_to_JNOW(pos_j2000)
+    def set_solved_position_labels(self, pos_j2000):
+        self.store_skycoord_to_label(pos_j2000.radec, self.ui.solve_ra_j2000_label, self.ui.solve_dec_j2000_label)
+        pos_jnow = precess_J2000_to_JNOW(pos_j2000.radec)
         self.store_skycoord_to_label(pos_jnow, self.ui.solve_ra_jnow_label, self.ui.solve_dec_jnow_label)
-        self.ui.solve_roll_angle_label.setText(f"{angle:6.2}")
+        self.ui.solve_roll_angle_label.setText(f"{pos_j2000.angle:6.2}")
 
     def set_target_position_labels(self, pos_j2000):
-        self.ui.target_ra_j2000_entry.setPlainText('  ' + pos_j2000.ra.to_string(u.hour, sep=":", pad=True))
-        self.ui.target_dec_j2000_entry.setPlainText(pos_j2000.dec.to_string(alwayssign=True, sep=":", pad=True))
+        self.ui.target_ra_j2000_entry.setPlainText('  ' + pos_j2000.radec.ra.to_string(u.hour, sep=":", pad=True))
+        self.ui.target_dec_j2000_entry.setPlainText(pos_j2000.radec.dec.to_string(alwayssign=True, sep=":", pad=True))
 
 #        if pos_j2000 is not None:
 #            self.store_skycoord_to_label(pos_j2000, self.ui.target_ra_j2000_label, self.ui.target_dec_j2000_label)
@@ -609,9 +840,9 @@ class MyApp(QtWidgets.QMainWindow):
             return
 
         # convert to jnow
-        solved_jnow = precess_J2000_to_JNOW(self.solved_j2000)
+        solved_jnow = precess_J2000_to_JNOW(self.solved_j2000.radec)
 
-        sep = self.solved_j2000.separation(self.tel.get_position_j2000()).degree
+        sep = self.solved_j2000.radec.separation(self.tel.get_position_j2000()).degree
         logging.info(f"Sync pos is {sep} degrees from current pos")
 
         # get confirmation
@@ -619,7 +850,7 @@ class MyApp(QtWidgets.QMainWindow):
         yesno.setIcon(QtWidgets.QMessageBox.Question)
         yesno.setInformativeText(f"Do you want to sync the mount?\n\n" + \
                                  f"Position (J2000): \n" + \
-                                 f"     {self.solved_j2000.to_string('hmsdms', sep=':')}\n\n" + \
+                                 f"     {self.solved_j2000.radec.to_string('hmsdms', sep=':')}\n\n" + \
                                  f"This is {sep:6.2f} degrees from current position.")
         yesno.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
         result = yesno.exec()
@@ -642,7 +873,7 @@ class MyApp(QtWidgets.QMainWindow):
 
             logging.info("Syncing mount")
             self.ui.statusbar.showMessage("Synced")
-            self.app.processEvents()             
+            self.app.processEvents()
             self.tel.sync(solved_jnow)
         else:
             logging.info("User declined to sync mount")
@@ -654,8 +885,9 @@ class MyApp(QtWidgets.QMainWindow):
             logging.warning("solve_file_cb: User aborted file open")
             return
 
-        (self.solved_j2000, self.solved_angle) = self.plate_solve_file(fname)
-        self.set_solved_position_labels(self.solved_j2000, self.solved_angle)
+        self.solved_j2000 = self.plate_solve_file(fname)
+        if self.solved_j2000 is not None:
+            self.set_solved_position_labels(self.solved_j2000)
 
     def solve_image_cb(self):
         logging.info("Taking image")
@@ -686,8 +918,9 @@ class MyApp(QtWidgets.QMainWindow):
 
         logging.info(f"Saving image to {ff}")
         self.cam.saveimageCamera(ff)
-        (self.solved_j2000, self.solved_angle) = self.plate_solve_file(ff)
-        self.set_solved_position_labels(self.solved_j2000, self.solved_angle)
+        self.solved_j2000 = self.plate_solve_file(ff)
+        if self.solved_j2000 is not None:
+            self.set_solved_position_labels(self.solved_j2000)
 
     def setupCCDFrameBinning(self):
         # set camera dimensions to full frame and 1x1 binning
@@ -708,14 +941,79 @@ class MyApp(QtWidgets.QMainWindow):
         logging.info("CCD bin : %d x %d ", xbin, ybin)
 
     def plate_solve_file(self, fname):
+        """Solve file using user selected method
 
-        # FIXME activity progress bar doesnt work and is too big!
-        #self.show_activity_bar()
+        Parameter
+        ---------
+        fname : str
+            Filename of image to be solved.
+
+        Returns
+        -------
+        pos_j2000 : PlateSolveSolution
+            Solution to plate solve or None if it failed.
+        """
+        if self.ui.use_astrometry_radio_button.isChecked():
+            return self.plate_solve_file_astrometry(fname)
+        elif self.ui.use_platesolve2_radio_button.isChecked():
+            return self.plate_solve_file_platesolve2(fname)
+        else:
+            logging.error("plate_solve_file: Unknown solver selected!!")
+            return None
+
+    def plate_solve_file_platesolve2(self, fname):
+        self.ui.statusbar.showMessage("Solving with PlateSolve2...")
+        self.app.processEvents()
+
+        radec_pos = read_radec_from_FITS(fname)
+
+        if radec_pos is None:
+            logging.error('error reading radec from FITS file')
+            self.ui.statusbar.showMessage("Error reading FITS file!")
+            err =  QtWidgets.QMessageBox()
+            err.setIcon(QtWidgets.QMessageBox.Critical)
+            err.setInformativeText("Error reading FITS file!")
+            err.setStandardButtons(QtWidgets.QMessageBox.Ok)
+            err.exec()
+            return
+
+        self.ui.statusbar.showMessage("Starting PlateSolve2")
+        self.app.processEvents()
+
+        solved_j2000 = self.platesolve2.solve_file(fname,
+                                                   radec_pos,
+                                                   self.plate_solve_params.fov_x,
+                                                   self.plate_solve_params.fov_y,
+                                                   self.plate_solve_params.pixel_scale)
+
+        if solved_j2000 is None:
+            logging.error("Plate solve failed!")
+            self.ui.statusbar.showMessage("Plate solve failed!")
+            err =  QtWidgets.QMessageBox()
+            err.setIcon(QtWidgets.QMessageBox.Critical)
+            err.setInformativeText("Plate solve failed!")
+            err.setStandardButtons(QtWidgets.QMessageBox.Ok)
+            err.exec()
+            return
+
+        self.ui.statusbar.showMessage("Plate solve succeeded")
+        self.app.processEvents()
+
+        return solved_j2000
+
+    def plate_solve_file_astrometry(self, fname):
+        time_start = time.time()
+        timeout = 60  # timeout in seconds
 
         self.ui.statusbar.showMessage("Uploading image to astrometry.net...")
         self.app.processEvents()
 
-        upres = self.astroclient.upload(fname)
+        kwargs = {}
+        kwargs['scale_units'] = 'arcsecperpix'
+        kwargs['scale_est'] = self.plate_solve_params.pixel_scale
+        kwargs['downsample_factor'] = 2
+
+        upres = self.astroclient.upload(fname, **kwargs)
         logging.info(f"upload result = {upres}")
 
         if upres['status'] != 'success':
@@ -726,14 +1024,12 @@ class MyApp(QtWidgets.QMainWindow):
             err.setInformativeText("Error uploading image to astrometry.net!")
             err.setStandardButtons(QtWidgets.QMessageBox.Ok)
             err.exec()
-            return
+            return None
 
         self.ui.statusbar.showMessage("Upload successful")
         self.app.processEvents()
 
         sub_id = upres['subid']
-
-#        print("sub_id=", sub_id)
 
         loop_count = 0
         if sub_id is not None:
@@ -763,6 +1059,16 @@ class MyApp(QtWidgets.QMainWindow):
                 if loop_count > 30:
                     loop_count = 0
 
+                if time.time() - time_start > timeout:
+                    logging.error("astrometry.net solve timeout!")
+                    self.ui.statusbar.showMessage("Astrometry.net timeout!")
+                    err =  QtWidgets.QMessageBox()
+                    err.setIcon(QtWidgets.QMessageBox.Critical)
+                    err.setInformativeText("Astrometry.net took too long to respond")
+                    err.setStandardButtons(QtWidgets.QMessageBox.Ok)
+                    err.exec()
+                    return None
+
                 time.sleep(0.5)
 
         self.ui.statusbar.showMessage(f"Job started - id = {solved_id}")
@@ -771,10 +1077,18 @@ class MyApp(QtWidgets.QMainWindow):
         while True:
             job_stat = self.astroclient.job_status(solved_id)
 
-#            print("job_stat", job_stat)
-
             if job_stat == 'success':
                 break
+
+            if time.time() - time_start > timeout:
+                logging.error("astrometry.net solve timeout!")
+                self.ui.statusbar.showMessage("Astrometry.net timeout!")
+                err =  QtWidgets.QMessageBox()
+                err.setIcon(QtWidgets.QMessageBox.Critical)
+                err.setInformativeText("Astrometry.net took too long to respond")
+                err.setStandardButtons(QtWidgets.QMessageBox.Ok)
+                err.exec()
+                return None
 
             time.sleep(5)
 
@@ -791,7 +1105,7 @@ class MyApp(QtWidgets.QMainWindow):
             err.setInformativeText("Plate solve failed!")
             err.setStandardButtons(QtWidgets.QMessageBox.Ok)
             err.exec()
-            return
+            return None
 
         final_calib = self.astroclient.job_calib_result(solved_id)
         print("final_calib=", final_calib)
@@ -799,16 +1113,16 @@ class MyApp(QtWidgets.QMainWindow):
         self.ui.statusbar.showMessage("Plate solve succeeded")
         self.app.processEvents()
 
-        solved_j2000 = SkyCoord(ra=final_calib['ra']*u.degree, dec=final_calib['dec']*u.degree, frame='fk5', equinox='J2000')
+        radec = SkyCoord(ra=final_calib['ra']*u.degree, dec=final_calib['dec']*u.degree, frame='fk5', equinox='J2000')
 
-        return (solved_j2000, final_calib['orientation'])
+        return PlateSolveSolution(radec, pixel_scale=final_calib['pixscale'], angle=Angle(final_calib['orientation']*u.deg))
 
     def store_skycoord_to_label(self, pos, lbl_ra, lbl_dec):
         lbl_ra.setText('  ' + pos.ra.to_string(u.hour, sep=":", pad=True))
         lbl_dec.setText(pos.dec.to_string(alwayssign=True, sep=":", pad=True))
 
     def target_use_solved_cb(self):
-        self.target_j2000 = self.solved_j2000
+        self.target_j2000 = self.solved_j2000.radec
         self.set_target_position_labels(self.target_j2000)
 
     def target_goto_cb(self):
