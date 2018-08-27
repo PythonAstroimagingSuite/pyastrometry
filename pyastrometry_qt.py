@@ -545,10 +545,10 @@ class MyApp(QtWidgets.QMainWindow):
 #        self.ui.target_enter_manual_button.clicked.connect(self.target_enter_manual_cb)
 
         # init vars
-        #self.solved_j2000 = None
+        self.solved_j2000 = None
 
-        self.solved_j2000 = SkyCoord("1h12m43.2s +1d12m43s", frame='fk5', unit=(u.deg, u.hourangle), equinox="J2000")
-        self.set_solved_position_labels(self.solved_j2000)
+#        self.solved_j2000 = SkyCoord("1h12m43.2s +1d12m43s", frame='fk5', unit=(u.deg, u.hourangle), equinox="J2000")
+#        self.set_solved_position_labels(self.solved_j2000)
 
         self.target_j2000 = None
 
