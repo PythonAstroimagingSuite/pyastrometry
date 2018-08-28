@@ -990,7 +990,7 @@ class MyApp(QtWidgets.QMainWindow):
         self.store_skycoord_to_label(pos_j2000.radec, self.ui.solve_ra_j2000_label, self.ui.solve_dec_j2000_label)
         pos_jnow = precess_J2000_to_JNOW(pos_j2000.radec)
         self.store_skycoord_to_label(pos_jnow, self.ui.solve_ra_jnow_label, self.ui.solve_dec_jnow_label)
-        self.ui.solve_roll_angle_label.setText(f"{pos_j2000.angle:6.2f}")
+        self.ui.solve_roll_angle_label.setText(f"{pos_j2000.angle.degree:6.2f}")
 
     def set_target_position_labels(self, pos_j2000):
         self.ui.target_ra_j2000_entry.setPlainText('  ' + pos_j2000.ra.to_string(u.hour, sep=":", pad=True))
