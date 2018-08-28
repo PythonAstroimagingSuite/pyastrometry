@@ -1110,7 +1110,7 @@ class MyApp(QtWidgets.QMainWindow):
         self.cam.setbinningCamera(self.settings.camera_binning, self.settings.camera_binning)
 
         logging.info("CCD size: %d x %d ", width, height)
-        logging.info("CCD bin : %d x %d ", xbin, ybin)
+        logging.info("CCD bin : %d x %d ", self.settings.camera_binning, self.settings.camera_binning)
 
     def plate_solve_file(self, fname):
         """Solve file using user selected method
