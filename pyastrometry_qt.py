@@ -1073,7 +1073,7 @@ class MyApp(QtWidgets.QMainWindow):
             self.ui.statusbar.showMessage('Precise slew - solving current position')
             self.app.processEvents()
 
-            curpos_j2000 = self.solve_image()
+            curpos_j2000 = self.run_solve_image()
 
             self.ui.statusbar.showMessage('Precise slew - position solved')
             self.app.processEvents()
