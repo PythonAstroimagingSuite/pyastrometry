@@ -827,33 +827,18 @@ class ProgramSettings:
         self.camera_exposure = 5
         self.camera_binning = 2
 
-
-        # FIXME this isnt right way to do defaults with ConfigObj
-#        self.config['pixel_scale_arcsecpx'] = 1.0
-#        self.config['platesolve2_location'] = ""
-#        self.config['platesolve2_regions'] = 999
-#        self.config['platesolve2_wait_time'] = 10
-#        self.config['astrometry_timeout'] = 90
-
-    # FIXME not sure best way to setup these attributes
-#    pixel_scale_arcsecpx = self.config['pixel_scale_arcsecpx']
-#    platesolve2_location = self.config['platesolve2_location']
-#    platesolve2_regions = self.config['platesolve2_regions']
-#    platesolve2_wait_time = self.config['platesolve2_wait_time']
-#    astrometry_timeout = self.config['astrometry_timeout']
-
     # FIXME This will break HORRIBLY unless passed an attribute already
     #       in the ConfigObj dictionary
     #
     def __getattr__(self, attr):
-        logging.info(f'{self.__dict__}')
+        #logging.info(f'{self.__dict__}')
         if not attr.startswith('_'):
             return self._config[attr]
         else:
             return super().__getattribute__(attr)
 
     def __setattr__(self, attr, value):
-        logging.info(f'setattr: {attr} {value}')
+        #logging.info(f'setattr: {attr} {value}')
         if not attr.startswith('_'):
             self._config[attr] = value
         else:
@@ -1199,7 +1184,7 @@ class MyApp(QtWidgets.QMainWindow):
         kwargs['scale_est'] = self.settings.pixel_scale_arcsecpx
 
         # if image already binned lets skip having astrometry.net downsample
-        downsample = self.astrometry_downsample_factor
+        downsample = self.settings.astrometry_downsample_factor
         img_info = read_image_info_from_FITS(fname)
         if img_info is None:
             logging.warning('plate_solve_file_astrometry: couldnt read image info!')
