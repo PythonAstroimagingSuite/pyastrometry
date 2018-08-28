@@ -939,7 +939,7 @@ class MyApp(QtWidgets.QMainWindow):
 
         self.ui.target_use_solved_button.clicked.connect(self.target_use_solved_cb)
         self.ui.target_goto_button.clicked.connect(self.target_goto_cb)
-#        self.ui.target_enter_manual_button.clicked.connect(self.target_enter_manual_cb)
+        self.ui.target_precise_goto_button.clicked.connect(self.target_precise_goto_cb)
 
         self.ui.plate_solve_setup_button.clicked.connect(self.edit_settings_cb)
 
@@ -1062,7 +1062,7 @@ class MyApp(QtWidgets.QMainWindow):
             logging.info("User declined to sync mount")
 
 
-    def precise_slew_cb(self):
+    def target_precise_goto_cb(self):
         target = self.get_target_pos()
         if target is None:
             return
@@ -1382,6 +1382,10 @@ class MyApp(QtWidgets.QMainWindow):
         lbl_dec.setText(pos.dec.to_string(alwayssign=True, sep=":", pad=True))
 
     def target_use_solved_cb(self):
+        if self.solved_j2000 is None:
+            CriticalDialog('No solution exists yet!').exec()
+            return
+
         self.target_j2000 = self.solved_j2000.radec
         self.set_target_position_labels(self.target_j2000)
 
