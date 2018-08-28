@@ -826,6 +826,7 @@ class ProgramSettings:
         self.astrometry_downsample_factor = 2
         self.camera_exposure = 5
         self.camera_binning = 2
+        self.precise_slew_limit = 600.0
 
     # FIXME This will break HORRIBLY unless passed an attribute already
     #       in the ConfigObj dictionary
@@ -887,6 +888,26 @@ class ProgramSettings:
 
         self._config.merge(config)
         return True
+
+class YesNoDialog:
+    def __init__(self, info_text=''):
+        self.yesno = QtWidgets.QMessageBox()
+        self.yesno.setIcon(QtWidgets.QMessageBox.Question)
+        self.yesno.setInformativeText(info_text)
+        self.yesno.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+
+    def exec(self):
+        return self.yesno.exec() == QtWidgets.QMessageBox.Yes
+
+class CriticalDialog:
+    def __init__(self, error_text=''):
+        self.err = QtWidgets.QMessageBox()
+        self.err.setIcon(QtWidgets.QMessageBox.Critical)
+        self.err.setInformativeText(error_text)
+        self.err.setStandardButtons(QtWidgets.QMessageBox.Ok)
+
+    def exec(self):
+        self.err.exec()
 
 class MyApp(QtWidgets.QMainWindow):
     def __init__(self, app, args):
@@ -993,11 +1014,12 @@ class MyApp(QtWidgets.QMainWindow):
     def sync_pos_cb(self):
         if self.solved_j2000 is None:
             logging.error("Cannot SYNC no solved POSITION!")
-            err = QtWidgets.QMessageBox()
-            err.setIcon(QtWidgets.QMessageBox.Critical)
-            err.setInformativeText("Cannot sync mount - must solve position first!")
-            err.setStandardButtons(QtWidgets.QMessageBox.Ok)
-            err.exec()
+            CriticalDialog('Cannot sync mount - must solve position first!').exec()
+#            err = QtWidgets.QMessageBox()
+#            err.setIcon(QtWidgets.QMessageBox.Critical)
+#            err.setInformativeText("Cannot sync mount - must solve position first!")
+#            err.setStandardButtons(QtWidgets.QMessageBox.Ok)
+#            err.exec()
             return
 
         # convert to jnow
@@ -1039,18 +1061,70 @@ class MyApp(QtWidgets.QMainWindow):
         else:
             logging.info("User declined to sync mount")
 
+
+    def precise_slew_cb(self):
+        target = self.get_target_pos()
+        if target is None:
+            return
+
+        while True:
+            logging.info('Precise slew - solving current position')
+
+            self.ui.statusbar.showMessage('Precise slew - solving current position')
+            self.app.processEvents()
+
+            curpos_j2000 = self.solve_image()
+
+            self.ui.statusbar.showMessage('Precise slew - position solved')
+            self.app.processEvents()
+
+            logging.info(f'solved position is {curpos_j2000}')
+
+            if curpos_j2000 is None:
+               CriticalDialog('Precise slew failed - unable to solve current position.')
+               return
+
+            self.solved_j2000 = curpos_j2000
+            sep = self.solved_j2000.radec.separation(target).degree
+            logging.info(f'Distance from target is {sep}')
+
+            # if too far ask before making correction
+            if sep < 0.1:
+                logging.info('Sep < threshold so quitting')
+                return
+            elif sep > 5:
+                result = YesNoDialog(f'Error in position is {sep:6.2f} degrees.  Slew to correct?')
+
+                if not result:
+                    logging.info('User elected to stop precise slew correction')
+                    return
+
+            # sync
+            self.sync_pos_cb()
+
+            time.sleep(1) # just to let things happen
+
+            # slew
+            self.target_goto_cb()
+
+
     def solve_file_cb(self):
         fname, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Select file to solve:")
         logging.info(f"solve_file_cb: User selected file {fname}")
         if len(fname) < 1:
             logging.warning("solve_file_cb: User aborted file open")
             return
+        self.run_solve_file(fname)
 
+    def run_solve_file(self, fname):
         self.solved_j2000 = self.plate_solve_file(fname)
         if self.solved_j2000 is not None:
             self.set_solved_position_labels(self.solved_j2000)
 
     def solve_image_cb(self):
+        self.run_solve_image()
+
+    def run_solve_image(self):
         logging.info("Taking image")
         self.ui.statusbar.showMessage("Taking image with camera...")
         self.app.processEvents()
@@ -1082,6 +1156,8 @@ class MyApp(QtWidgets.QMainWindow):
         self.solved_j2000 = self.plate_solve_file(ff)
         if self.solved_j2000 is not None:
             self.set_solved_position_labels(self.solved_j2000)
+
+        return self.solved_j2000
 
     def setupCCDFrameBinning(self):
         # set camera dimensions to full frame and 1x1 binning
@@ -1153,7 +1229,8 @@ class MyApp(QtWidgets.QMainWindow):
 
         logging.info(f'plate_solve_file_platesolve2: solve_parms = {solve_params}')
 
-        solved_j2000 = self.platesolve2.solve_file(fname, solve_params)
+        solved_j2000 = self.platesolve2.solve_file(fname, solve_params,
+                                                   nfields=self.settings.platesolve2_regions)
 
         if solved_j2000 is None:
             logging.error('Plate solve failed!')
@@ -1308,7 +1385,7 @@ class MyApp(QtWidgets.QMainWindow):
         self.target_j2000 = self.solved_j2000.radec
         self.set_target_position_labels(self.target_j2000)
 
-    def target_goto_cb(self):
+    def get_target_pos(self):
         target_str = self.ui.target_ra_j2000_entry.toPlainText() + " "
         target_str += self.ui.target_dec_j2000_entry.toPlainText()
         logging.info(f"target_str = {target_str}")
@@ -1317,21 +1394,16 @@ class MyApp(QtWidgets.QMainWindow):
             target = SkyCoord(target_str, unit=(u.hourangle, u.deg), frame='fk5', equinox='J2000')
         except ValueError:
             logging.error("Cannot GOTO invalid target POSITION!")
-            err = QtWidgets.QMessageBox()
-            err.setIcon(QtWidgets.QMessageBox.Critical)
-            err.setInformativeText(f"Invalid target coordinates!")
-            err.setStandardButtons(QtWidgets.QMessageBox.Ok)
-            err.exec()
-            return
+            CriticalDialog('Invalid target coordinates!').exec()
+            return None
 
-#        if target is None:
-#            logging.error("Cannot GOTO no target POSITION!")
-#            err =  QtWidgets.QMessageBox()
-#            err.setIcon(QtWidgets.QMessageBox.Critical)
-#            err.setInformativeText("Cannot GOTO - must enter target position first!")
-#            err.setStandardButtons(QtWidgets.QMessageBox.Ok)
-#            err.exec()
-#            return
+        return target
+
+    def target_goto_cb(self):
+        target = self.get_target_pos()
+
+        if target is None:
+            return
 
         self.target_j2000 = target
 
@@ -1383,6 +1455,7 @@ class MyApp(QtWidgets.QMainWindow):
         dlg.ui.platesolve2_exec_path_lbl.setText(self.settings.platesolve2_location)
         dlg.ui.plate_solve_camera_binning_spinbox.setValue(self.settings.camera_binning)
         dlg.ui.plate_solve_camera_exposure_spinbox.setValue(self.settings.camera_exposure)
+        dlg.ui.plate_solve_precise_slew_limit_spinbox.setValue(self.settings.precise_slew_limit)
         result = dlg.exec_()
 
         logging.info(f'{result}')
@@ -1395,6 +1468,7 @@ class MyApp(QtWidgets.QMainWindow):
             self.settings.astrometry_downsample_factor = dlg.ui.astrometry_downsample_spinbox.value()
             self.settings.camera_binning = dlg.ui.plate_solve_camera_binning_spinbox.value()
             self.settings.camera_exposure = dlg.ui.plate_solve_camera_exposure_spinbox.value()
+            self.settings.precise_slew_limit = dlg.ui.plate_solve_precise_slew_limit_spinbox.value()
             self.settings.write()
 
 

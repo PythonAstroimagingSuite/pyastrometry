@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>274</width>
-    <height>352</height>
+    <width>278</width>
+    <height>404</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -68,6 +68,27 @@
         </property>
         <property name="maximum">
          <number>4</number>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="label_13">
+        <property name="text">
+         <string>Precise Slew Limit</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QDoubleSpinBox" name="plate_solve_precise_slew_limit_spinbox">
+        <property name="maximum">
+         <double>900.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="2">
+       <widget class="QLabel" name="label_14">
+        <property name="text">
+         <string>arc-seconds</string>
         </property>
        </widget>
       </item>
