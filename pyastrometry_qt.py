@@ -1089,8 +1089,11 @@ class MyApp(QtWidgets.QMainWindow):
             logging.info(f'Distance from target is {sep}')
 
             # if too far ask before making correction
-            if sep < 0.1:
-                logging.info('Sep < threshold so quitting')
+            # slew limit is in arcseconds so convert
+            if sep < self.settings.precise_slew_limit/3600.0:
+                logging.info(f'Sep {sep} < threshold {self.settings.precise_slew_limit/3600.0} so quitting')
+                self.ui.statusbar.showMessage(f'Precise slew - final offset is {sep*3600:5.1f} arc-seconds')
+                self.app.processEvents()
                 return
             elif sep > 5:
                 result = YesNoDialog(f'Error in position is {sep:6.2f} degrees.  Slew to correct?')
