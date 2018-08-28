@@ -823,6 +823,7 @@ class ProgramSettings:
         self.platesolve2_regions = 999
         self.platesolve2_wait_time = 10
         self.astrometry_timeout = 90
+        self.astrometry_downsample_factor = 2
         self.camera_exposure = 5
         self.camera_binning = 2
 
@@ -1390,6 +1391,7 @@ class MyApp(QtWidgets.QMainWindow):
 
         dlg = EditDialog()
         dlg.ui.astrometry_timeout_spinbox.setValue(self.settings.astrometry_timeout)
+        dlg.ui.astrometry_downsample_spinbox.setValue(self.settings.astrometry_downsample_factor)
         dlg.ui.pixelscale_spinbox.setValue(self.settings.pixel_scale_arcsecpx)
         dlg.ui.platesolve2_waittime_spinbox.setValue(self.settings.platesolve2_wait_time)
         dlg.ui.platesolve2_num_regions_spinbox.setValue(self.settings.platesolve2_regions)
@@ -1405,6 +1407,7 @@ class MyApp(QtWidgets.QMainWindow):
             self.settings.platesolve2_wait_time = dlg.ui.platesolve2_waittime_spinbox.value()
             self.settings.pixel_scale_arcsecpx = dlg.ui.pixelscale_spinbox.value()
             self.settings.astrometry_timeout = dlg.ui.astrometry_timeout_spinbox.value()
+            self.settings.astrometry_downsample_factor = dlg.ui.astrometry_downsample_spinbox.value()
             self.settings.camera_binning = dlg.ui.plate_solve_camera_binning_spinbox.value()
             self.settings.camera_exposure = dlg.ui.plate_solve_camera_exposure_spinbox.value()
             self.settings.write()
