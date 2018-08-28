@@ -823,6 +823,8 @@ class ProgramSettings:
         self.platesolve2_regions = 999
         self.platesolve2_wait_time = 10
         self.astrometry_timeout = 90
+        self.camera_exposure = 5
+        self.camera_binning = 2
 
 
         # FIXME this isnt right way to do defaults with ConfigObj
@@ -897,7 +899,7 @@ class ProgramSettings:
             logging.error('failed to read config file!')
             return False
 
-        self._config = config
+        self._config.merge(config)
         return True
 
 class MyApp(QtWidgets.QMainWindow):
@@ -1069,7 +1071,7 @@ class MyApp(QtWidgets.QMainWindow):
 
         self.setupCCDFrameBinning()
 
-        focus_expos = 5
+        focus_expos = self.settings.camera_exposure
         self.cam.takeframeCamera(focus_expos)
 
         # give things time to happen (?) I get Maxim not ready errors so slowing it down
@@ -1105,10 +1107,7 @@ class MyApp(QtWidgets.QMainWindow):
 
         self.cam.setframeCamera(0, 0, width, height)
 
-        xbin = 2
-        ybin = 2
-
-        self.cam.setbinningCamera(xbin, ybin)
+        self.cam.setbinningCamera(self.settings.camera_binning, self.settings.camera_binning)
 
         logging.info("CCD size: %d x %d ", width, height)
         logging.info("CCD bin : %d x %d ", xbin, ybin)
@@ -1395,6 +1394,8 @@ class MyApp(QtWidgets.QMainWindow):
         dlg.ui.platesolve2_waittime_spinbox.setValue(self.settings.platesolve2_wait_time)
         dlg.ui.platesolve2_num_regions_spinbox.setValue(self.settings.platesolve2_regions)
         dlg.ui.platesolve2_exec_path_lbl.setText(self.settings.platesolve2_location)
+        dlg.ui.plate_solve_camera_binning_spinbox.setValue(self.settings.camera_binning)
+        dlg.ui.plate_solve_camera_exposure_spinbox.setValue(self.settings.camera_exposure)
         result = dlg.exec_()
 
         logging.info(f'{result}')
@@ -1404,7 +1405,8 @@ class MyApp(QtWidgets.QMainWindow):
             self.settings.platesolve2_wait_time = dlg.ui.platesolve2_waittime_spinbox.value()
             self.settings.pixel_scale_arcsecpx = dlg.ui.pixelscale_spinbox.value()
             self.settings.astrometry_timeout = dlg.ui.astrometry_timeout_spinbox.value()
-
+            self.settings.camera_binning = dlg.ui.plate_solve_camera_binning_spinbox.value()
+            self.settings.camera_exposure = dlg.ui.plate_solve_camera_exposure_spinbox.value()
             self.settings.write()
 
 
