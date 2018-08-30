@@ -1092,7 +1092,7 @@ class MyApp(QtWidgets.QMainWindow):
             # slew limit is in arcseconds so convert
             if sep < self.settings.precise_slew_limit/3600.0:
                 logging.info(f'Sep {sep} < threshold {self.settings.precise_slew_limit/3600.0} so quitting')
-                self.ui.statusbar.showMessage(f'Precise slew - final offset is {sep*3600:5.1f} arc-seconds')
+                self.ui.statusbar.showMessage(f'Precise slew complete - offset is {sep*3600:5.1f} arc-seconds')
                 self.app.processEvents()
                 return
             elif sep > 5:
