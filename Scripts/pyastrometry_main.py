@@ -45,6 +45,16 @@ from PyQt5 import QtCore, QtWidgets
 from pyastrometry.uic.pyastrometry_uic import Ui_MainWindow
 from pyastrometry.uic.pyastrometry_settings_uic import Ui_Dialog as Ui_SettingsDialog
 
+# FIXME Need better VERSION system
+# this has to match yaml
+import importlib
+
+# see if we injected a version at conda build time
+if importlib.util.find_spec('pyastrometry.build_version'):
+    from pyastrometry.build_version import VERSION
+else:
+    VERSION='UNKNOWN'
+
 
 def json2python(data):
     try:
@@ -929,6 +939,8 @@ class MyApp(QtWidgets.QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
 
+        self.setWindowTitle('pyastrometry v' + VERSION)
+
         # connect to telescope
         self.tel = Telescope()
         self.tel.connect_to_telescope(self.args.telescope)
@@ -1508,7 +1520,8 @@ class MyApp(QtWidgets.QMainWindow):
             self.platesolve2.set_exec_path(self.settings.platesolve2_location)
 
 if __name__ == '__main__':
-    logging.basicConfig(filename='pyastrometry_qt.log',
+    logging.basicConfig(filename='pyastrometry.log',
+                        filemode='w',
                         level=logging.DEBUG,
                         format='%(asctime)s %(levelname)-8s %(message)s',
                         datefmt='%Y-%m-%d %H:%M:%S')
@@ -1521,7 +1534,7 @@ if __name__ == '__main__':
     CH.setFormatter(formatter)
     LOG.addHandler(CH)
 
-    logging.info('pyastrometry_qt starting')
+    logging.info(f'pyastrometry v {VERSION} starting')
 
     ARGS = parse_command_line()
 
