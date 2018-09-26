@@ -42,8 +42,8 @@ from astropy.coordinates import Angle
 import win32com.client      #needed to load COM objects
 
 from PyQt5 import QtCore, QtWidgets
-from pyastrometry_qt_uic import Ui_MainWindow
-from pyastrometry_qt_settings_uic import Ui_Dialog as Ui_SettingsDialog
+from pyastrometry.uic.pyastrometry_uic import Ui_MainWindow
+from pyastrometry.uic.pyastrometry_settings_uic import Ui_Dialog as Ui_SettingsDialog
 
 
 def json2python(data):
@@ -465,6 +465,9 @@ class PlateSolve2:
 
     #def solve_file(self, fname, radec, fov_x, fov_y, nfields=99, wait=1):
 
+    def set_exec_path(self, exec_path):
+        self.exec_path = exec_path
+
     def solve_file(self, fname, solve_params, nfields=99, wait=1):
         """ Plate solve the specified file using PlateSolve2
 
@@ -656,7 +659,13 @@ class Telescope:
 
     def sync(self, pos):
         logging.info(f"Syncing to {pos.ra.hour}  {pos.dec.degree}")
-        self.tel.SyncToCoordinates(pos.ra.hour, pos.dec.degree)
+        try:
+            self.tel.SyncToCoordinates(pos.ra.hour, pos.dec.degree)
+        except Exception as e:
+            logging.error('sync() Exception ->', exc_info=True)
+            return False
+
+        return True
 
     def goto(self, pos):
         logging.info(f"Goto to {pos.ra.hour}  {pos.dec.degree}")
@@ -1057,7 +1066,8 @@ class MyApp(QtWidgets.QMainWindow):
             logging.info("Syncing mount")
             self.ui.statusbar.showMessage("Synced")
             self.app.processEvents()
-            self.tel.sync(solved_jnow)
+            if not self.tel.sync(solved_jnow):
+                CriticalDialog('Error occurred syncing mount!').exec()
         else:
             logging.info("User declined to sync mount")
 
@@ -1452,6 +1462,22 @@ class MyApp(QtWidgets.QMainWindow):
 
                 self.ui = Ui_SettingsDialog()
                 self.ui.setupUi(self)
+                self.ui.setup_platesolve2_loc_button.pressed.connect(self.select_platesolve2dir)
+
+            def select_platesolve2dir(self):
+                ps2_dir = self.ui.platesolve2_exec_path_lbl.text()
+                new_ps2_dir, select_filter = QtWidgets.QFileDialog.getOpenFileName(None,
+                                                                   'PlateSolve2.exe Location',
+                                                                    ps2_dir,
+                                                                    "Programs (*.exe)",
+                                                                    None)
+
+                logging.info(f'select new_ps2_dir: {new_ps2_dir}')
+
+                if len(new_ps2_dir) < 1:
+                    return
+
+                self.ui.platesolve2_exec_path_lbl.setText(new_ps2_dir)
 
         dlg = EditDialog()
         dlg.ui.astrometry_timeout_spinbox.setValue(self.settings.astrometry_timeout)
@@ -1463,6 +1489,7 @@ class MyApp(QtWidgets.QMainWindow):
         dlg.ui.plate_solve_camera_binning_spinbox.setValue(self.settings.camera_binning)
         dlg.ui.plate_solve_camera_exposure_spinbox.setValue(self.settings.camera_exposure)
         dlg.ui.plate_solve_precise_slew_limit_spinbox.setValue(self.settings.precise_slew_limit)
+
         result = dlg.exec_()
 
         logging.info(f'{result}')
@@ -1478,6 +1505,7 @@ class MyApp(QtWidgets.QMainWindow):
             self.settings.precise_slew_limit = dlg.ui.plate_solve_precise_slew_limit_spinbox.value()
             self.settings.write()
 
+            self.platesolve2.set_exec_path(self.settings.platesolve2_location)
 
 if __name__ == '__main__':
     logging.basicConfig(filename='pyastrometry_qt.log',
