@@ -1,9 +1,6 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sat Aug 25 15:26:52 2018
-
-@author: msf
-"""
+#!/usr/bin/python
+# even on windows this 'tricks' conda into wrapping script so it will
+# execute like it would have in bash
 import os
 import sys
 import time
