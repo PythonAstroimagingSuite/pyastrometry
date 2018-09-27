@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'pyastrometry_qt_settings.ui'
+# Form implementation generated from reading ui file 'pyastrometry_settings.ui'
 #
 # Created by: PyQt5 UI code generator 5.9.2
 #
@@ -108,6 +108,14 @@ class Ui_Dialog(object):
         self.astrometry_downsample_spinbox.setMaximum(4)
         self.astrometry_downsample_spinbox.setObjectName("astrometry_downsample_spinbox")
         self.gridLayout_2.addWidget(self.astrometry_downsample_spinbox, 1, 1, 1, 1)
+        self.label_15 = QtWidgets.QLabel(self.groupBox_2)
+        self.label_15.setObjectName("label_15")
+        self.gridLayout_2.addWidget(self.label_15, 2, 0, 1, 1)
+        self.astrometry_apikey = QtWidgets.QPlainTextEdit(self.groupBox_2)
+        self.astrometry_apikey.setMinimumSize(QtCore.QSize(0, 24))
+        self.astrometry_apikey.setMaximumSize(QtCore.QSize(16777215, 24))
+        self.astrometry_apikey.setObjectName("astrometry_apikey")
+        self.gridLayout_2.addWidget(self.astrometry_apikey, 2, 1, 1, 2)
         self.formLayout.setWidget(2, QtWidgets.QFormLayout.SpanningRole, self.groupBox_2)
         spacerItem = QtWidgets.QSpacerItem(20, 5, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
         self.formLayout.setItem(3, QtWidgets.QFormLayout.SpanningRole, spacerItem)
@@ -149,4 +157,5 @@ class Ui_Dialog(object):
         self.label_6.setText(_translate("Dialog", "Timeout"))
         self.label_7.setText(_translate("Dialog", "seconds"))
         self.label_12.setText(_translate("Dialog", "Downsample"))
+        self.label_15.setText(_translate("Dialog", "API Key"))
 

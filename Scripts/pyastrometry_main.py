@@ -10,6 +10,7 @@ import logging
 import subprocess
 from datetime import datetime
 from configobj import ConfigObj
+import win32com.client      #needed to load COM objects
 
 try:
     # py3
@@ -36,9 +37,11 @@ from astropy.coordinates import SkyCoord
 from astropy.coordinates import FK5
 from astropy.coordinates import Angle
 
-import win32com.client      #needed to load COM objects
-
 from PyQt5 import QtCore, QtWidgets
+
+from pyastrometry.DeviceBackendASCOM import DeviceBackendASCOM as Backend
+
+
 from pyastrometry.uic.pyastrometry_uic import Ui_MainWindow
 from pyastrometry.uic.pyastrometry_settings_uic import Ui_Dialog as Ui_SettingsDialog
 
@@ -622,14 +625,24 @@ class Pinpoint:
         logging.info(f"Plate Solve (J2000)  RA: {self.pinpoint.RightAscension}")
         logging.info(f"                    DEC: {self.pinpoint.Declination}")
 
-class Telescope:
+class Telescope_OBSOLETE:
     def __init__(self):
-        pass
+        self.tel = None
+        self.connected = False
+
+    def show_chooser(self, last_choice):
+        chooser = win32com.client.Dispatch("ASCOM.Utilities.Chooser")
+        chooser.DeviceType="Telescope"
+        mount = chooser.Choose(last_choice)
+        logging.info(f'choice = {mount}')
+        return mount
 
     def connect_to_telescope(self, driver):
+        if self.connected:
+            logging.warning('connect_to_telescope: already connected!')
+
         logging.info(f"Connect to telescope driver {driver}")
         self.tel = win32com.client.Dispatch(driver)
-        print(self.tel, self.tel.RightAscension, self.tel.Declination)
 
         if self.tel.Connected:
             logging.info("	->Telescope was already connected")
@@ -639,12 +652,23 @@ class Telescope:
                 logging.info("	Connected to telescope now")
             else:
                 logging.error("	Unable to connect to telescope, expect exception")
+                return False
+
+        self.connected = True
+        return True
+
+    def is_connected(self):
+        return self.connected
 
     def get_position_jnow(self):
+        if not self.connected:
+            return None
         time_now = Time(datetime.utcnow(), scale='utc')
         return SkyCoord(ra=self.tel.RightAscension*u.hour, dec=self.tel.Declination*u.degree, frame='fk5', equinox=Time(time_now.jd, format="jd", scale="utc"))
 
     def get_position_j2000(self):
+        if not self.connected:
+            return None
         pos_jnow = self.get_position_jnow()
         return precess_JNOW_to_J2000(pos_jnow)
 
@@ -665,6 +689,9 @@ class Telescope:
 #            return None
 
     def sync(self, pos):
+        if not self.connected:
+            return False
+
         logging.info(f"Syncing to {pos.ra.hour}  {pos.dec.degree}")
         try:
             self.tel.SyncToCoordinates(pos.ra.hour, pos.dec.degree)
@@ -675,13 +702,18 @@ class Telescope:
         return True
 
     def goto(self, pos):
+        if not self.connected:
+            return False
         logging.info(f"Goto to {pos.ra.hour}  {pos.dec.degree}")
         self.tel.SlewToCoordinatesAsync(pos.ra.hour, pos.dec.degree)
+        return True
 
     def is_slewing(self):
+        if not self.connected:
+            return None
         return self.tel.Slewing
 
-class Camera:
+class Camera_OBSOLETE:
     def __init__(self):
         pass
 
@@ -834,12 +866,15 @@ class ProgramSettings:
         self._config = ConfigObj(unrepr=True, file_error=True, raise_errors=True)
         self._config.filename = self._get_config_filename()
 
+        self.telescope_driver = None
+        self.camera_driver = None
         self.pixel_scale_arcsecpx = 1.0
         self.platesolve2_location = "PlateSolve2.exe"
         self.platesolve2_regions = 999
         self.platesolve2_wait_time = 10
         self.astrometry_timeout = 90
         self.astrometry_downsample_factor = 2
+        self.astrometry_apikey = ''
         self.camera_exposure = 5
         self.camera_binning = 2
         self.precise_slew_limit = 600.0
@@ -930,26 +965,49 @@ class MyApp(QtWidgets.QMainWindow):
 
         super().__init__()
 
+        # FIXME need to store somewhere else
+        self.settings = ProgramSettings()
+        self.settings.read()
+
         self.app = app
         self.args = args
 
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
 
+        self.ui.telescope_driver_select.pressed.connect(self.select_telescope)
+        self.ui.telescope_driver_connect.pressed.connect(self.connect_telescope)
+
+#        self.ui.camera_driver_select.pressed.connect(self.select_camera)
+
+        if self.settings.camera_driver == 'MaximDL':
+            self.ui.camera_driver_maxim.setChecked(True)
+        elif self.settings.camera_driver == 'RPC':
+            self.ui.camera_driver_rpc.setChecked(True)
+        else:
+            logging.warning('camera driver not set!  Defaulting to MaximDL')
+            self.settings.camera_driver = 'MaximDL'
+            self.ui.camera_driver_maxim.setChecked(True)
+
+        self.ui.camera_driver_connect.pressed.connect(self.connect_camera)
+
         self.setWindowTitle('pyastrometry v' + VERSION)
 
-        # connect to telescope
-        self.tel = Telescope()
-        self.tel.connect_to_telescope(self.args.telescope)
-        self.ui.telescope_driver_label.setText(self.args.telescope)
+        # telescope
+        self.tel = Backend.Telescope()
+        #self.tel.connect_to_telescope(self.args.telescope)
+        self.ui.telescope_driver_label.setText(self.settings.telescope_driver)
 
         # connect to camera
-        self.cam = Camera()
-        self.cam.connectCamera()
+        self.cam = Backend.Camera()
+        #self.cam.connectCamera(self.settings.camera_driver)
 
         # connect to astrometry.net
-        self.astroclient = Client()
-        self.astroclient.login('***REMOVED***')
+        # FIXME Fix so we only login when needed
+        # FIXME Fix so with no internet this doesnt take a long time to fail
+        # FIXME put API KEY in config file
+#        self.astroclient = Client()
+#        self.astroclient.login('***REMOVED***')
 
         self.ui.solve_file_button.clicked.connect(self.solve_file_cb)
         self.ui.sync_pos_button.clicked.connect(self.sync_pos_cb)
@@ -964,17 +1022,7 @@ class MyApp(QtWidgets.QMainWindow):
         # init vars
         self.solved_j2000 = None
 
-#        self.solved_j2000 = SkyCoord("1h12m43.2s +1d12m43s", frame='fk5', unit=(u.deg, u.hourangle), equinox="J2000")
-#        self.set_solved_position_labels(self.solved_j2000)
-
         self.target_j2000 = None
-
-        # FIXME need to store somewhere else
-        self.settings = ProgramSettings()
-        self.settings.read()
-
-        #self.pixel_scale_arcsecpx = 1.0
-        #self.astrometry_downsample_factor = 2
 
         # choice which solver
         # FIXME make user configurable
@@ -982,9 +1030,6 @@ class MyApp(QtWidgets.QMainWindow):
 
         # platesolve2
         self.platesolve2 = PlateSolve2(self.settings.platesolve2_location)
-
-        # pinpoint
-#        self.pinpoint = Pinpoint("N:\\Astronomy\\GSCDATA\\GSC")
 
         # used for status bar
         self.activity_bar = QtWidgets.QProgressBar()
@@ -997,8 +1042,14 @@ class MyApp(QtWidgets.QMainWindow):
         self.curpospoller.start(1000)
 
     def poll_curpos_CB(self):
-        self.set_current_position_labels(self.tel.get_position_j2000())
+        if self.tel.is_connected():
+            self.set_current_position_labels(self.tel.get_position_j2000())
         #self.set_target_position_labels(self.tel.get_target_j2000())
+
+        # set button states
+        self.ui.telescope_driver_connect.setEnabled(not self.tel.is_connected())
+        self.ui.telescope_driver_select.setEnabled(not self.tel.is_connected())
+        self.ui.camera_driver_connect.setEnabled(not self.cam.is_connected())
 
     def show_activity_bar(self):
         self.ui.statusbar.addPermanentWidget(self.activity_bar)
@@ -1028,6 +1079,58 @@ class MyApp(QtWidgets.QMainWindow):
 #        else:
 #            for l in [self.ui.target_ra_j2000_label, self.ui.target_dec_j2000_label, self.ui.target_ra_jnow_label, self.ui.target_dec_jnow_label]:
 #                l.setText("--:--:--")
+
+    def select_telescope(self):
+        if self.settings.telescope_driver:
+            last_choice = self.settings.telescope_driver
+        else:
+            last_choice = ''
+
+        mount_choice = self.tel.show_chooser(last_choice)
+        if len(mount_choice) > 0:
+            self.settings.telescope_driver = mount_choice
+            self.settings.write()
+            self.ui.telescope_driver_label.setText(mount_choice)
+
+    def connect_telescope(self):
+        if self.settings.telescope_driver:
+            rc = self.tel.connect_to_telescope(self.settings.telescope_driver)
+            if not rc:
+                QtWidgets.QMessageBox.critical(None, 'Error', 'Unable to connect to mount!',
+                                               QtWidgets.QMessageBox.Ok)
+                return
+
+    def select_camera(self):
+        if self.settings.camera_driver:
+            last_choice = self.settings.camera_driver
+        else:
+            last_choice = ''
+
+        camera_choice = self.cam.show_chooser(last_choice)
+        if len(camera_choice) > 0:
+            self.settings.camera_driver = camera_choice
+            self.settings.write()
+            self.ui.camera_driver_label.setText(camera_choice)
+
+    def connect_camera(self):
+        if self.ui.camera_driver_maxim.isChecked():
+            driver = 'MaximDL'
+        elif self.ui.camera_driver_rpc.isChecked():
+            driver = 'RPC'
+        else:
+            logging.error('connect_camera(): UNKNOWN camera driver result from radio buttons!')
+            return
+
+        logging.info(f'connect_camera: driver = {driver}')
+
+        rc = self.cam.connect(driver)
+        if not rc:
+            QtWidgets.QMessageBox.critical(None, 'Error', 'Unable to connect to camera!',
+                                           QtWidgets.QMessageBox.Ok)
+            return
+
+        self.settings.camera_driver = driver
+        self.settings.write()
 
     def sync_pos_cb(self):
         if self.solved_j2000 is None:
@@ -1153,8 +1256,10 @@ class MyApp(QtWidgets.QMainWindow):
 
         self.setupCCDFrameBinning()
 
+        ff = os.path.join(os.getcwd(), "plate_solve_image.fits")
+
         focus_expos = self.settings.camera_exposure
-        self.cam.takeframeCamera(focus_expos)
+        self.cam.takeframeCamera(focus_expos, ff)
 
         # give things time to happen (?) I get Maxim not ready errors so slowing it down
         time.sleep(0.25)
@@ -1168,13 +1273,18 @@ class MyApp(QtWidgets.QMainWindow):
             if elapsed > focus_expos:
                 elapsed = focus_expos
 
-        ff = os.path.join(os.getcwd(), "plate_solve_image.fits")
-
         # give it some time seems like Maxim isnt ready if we hit it too fast
         time.sleep(0.5)
 
-        logging.info(f"Saving image to {ff}")
-        self.cam.saveimageCamera(ff)
+        # screwy interface for camera
+        # MaximDl will take frame and then we tell it to save
+        # RPC will take frame and save it in one action!
+        # So we only save here if the camera driver didnt save to file
+        # in takeframe
+        if not self.cam.takeframe_saves_file():
+            logging.info(f"Saving image to {ff}")
+            self.cam.saveimageCamera(ff)
+
         self.solved_j2000 = self.plate_solve_file(ff)
         if self.solved_j2000 is not None:
             self.set_solved_position_labels(self.solved_j2000)
@@ -1270,6 +1380,23 @@ class MyApp(QtWidgets.QMainWindow):
         return solved_j2000
 
     def plate_solve_file_astrometry(self, fname):
+
+        # connect
+        # FIXME this might leak since we create it each plate solve attempt?
+        self.astroclient = Client()
+
+        self.ui.statusbar.showMessage("Logging into astrometry.net...")
+        self.app.processEvents()
+
+        try:
+            self.astroclient.login(self.settings.astrometry_apikey)
+        except RequestError as e:
+            logging.error(f'Failed to login to astromentry.net -> {e}')
+            CriticalDialog(f'Login to astrometry.net failed -> {e}').exec()
+            self.ui.statusbar.showMessage("Login failed")
+            self.app.processEvents()
+            return
+
         time_start = time.time()
         timeout = self.settings.astrometry_timeout
 
@@ -1333,7 +1460,7 @@ class MyApp(QtWidgets.QMainWindow):
                             if j is not None:
                                 break
                         if j is not None:
-                            print('Selecting job id', j)
+                            logging.info(f'Selecting job id {j}')
                             solved_id = j
                             break
 
@@ -1491,6 +1618,7 @@ class MyApp(QtWidgets.QMainWindow):
         dlg = EditDialog()
         dlg.ui.astrometry_timeout_spinbox.setValue(self.settings.astrometry_timeout)
         dlg.ui.astrometry_downsample_spinbox.setValue(self.settings.astrometry_downsample_factor)
+        dlg.ui.astrometry_apikey.setPlainText(self.settings.astrometry_apikey)
         dlg.ui.pixelscale_spinbox.setValue(self.settings.pixel_scale_arcsecpx)
         dlg.ui.platesolve2_waittime_spinbox.setValue(self.settings.platesolve2_wait_time)
         dlg.ui.platesolve2_num_regions_spinbox.setValue(self.settings.platesolve2_regions)
@@ -1509,6 +1637,7 @@ class MyApp(QtWidgets.QMainWindow):
             self.settings.pixel_scale_arcsecpx = dlg.ui.pixelscale_spinbox.value()
             self.settings.astrometry_timeout = dlg.ui.astrometry_timeout_spinbox.value()
             self.settings.astrometry_downsample_factor = dlg.ui.astrometry_downsample_spinbox.value()
+            self.settings.astrometry_apikey = dlg.ui.astrometry_apikey.toPlainText()
             self.settings.camera_binning = dlg.ui.plate_solve_camera_binning_spinbox.value()
             self.settings.camera_exposure = dlg.ui.plate_solve_camera_exposure_spinbox.value()
             self.settings.precise_slew_limit = dlg.ui.plate_solve_precise_slew_limit_spinbox.value()

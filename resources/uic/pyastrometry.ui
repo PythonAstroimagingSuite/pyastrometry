@@ -6,15 +6,15 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>346</width>
-    <height>579</height>
+    <width>428</width>
+    <height>651</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>MainWindow</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <layout class="QFormLayout" name="formLayout">
+   <layout class="QGridLayout" name="gridLayout_6">
     <item row="0" column="0">
      <widget class="QGroupBox" name="groupBox_3">
       <property name="title">
@@ -35,10 +35,107 @@
          </property>
         </widget>
        </item>
+       <item row="0" column="2">
+        <widget class="QPushButton" name="telescope_driver_select">
+         <property name="minimumSize">
+          <size>
+           <width>48</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>64</width>
+           <height>16777215</height>
+          </size>
+         </property>
+         <property name="text">
+          <string>Select</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="3">
+        <widget class="QPushButton" name="telescope_driver_connect">
+         <property name="minimumSize">
+          <size>
+           <width>48</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>64</width>
+           <height>16777215</height>
+          </size>
+         </property>
+         <property name="text">
+          <string>Connect</string>
+         </property>
+        </widget>
+       </item>
       </layout>
      </widget>
     </item>
     <item row="1" column="0">
+     <widget class="QGroupBox" name="groupBox_5">
+      <property name="title">
+       <string>Camera</string>
+      </property>
+      <layout class="QGridLayout" name="gridLayout_4">
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_12">
+         <property name="text">
+          <string>Camera Driver</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="2">
+        <widget class="QPushButton" name="camera_driver_connect">
+         <property name="minimumSize">
+          <size>
+           <width>48</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>64</width>
+           <height>16777215</height>
+          </size>
+         </property>
+         <property name="text">
+          <string>Connect</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <layout class="QHBoxLayout" name="horizontalLayout">
+         <item>
+          <widget class="QRadioButton" name="camera_driver_maxim">
+           <property name="text">
+            <string>Maxim DL</string>
+           </property>
+           <attribute name="buttonGroup">
+            <string notr="true">camera_driver_button_group</string>
+           </attribute>
+          </widget>
+         </item>
+         <item>
+          <widget class="QRadioButton" name="camera_driver_rpc">
+           <property name="text">
+            <string>RPC</string>
+           </property>
+           <attribute name="buttonGroup">
+            <string notr="true">camera_driver_button_group</string>
+           </attribute>
+          </widget>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item row="2" column="0">
      <widget class="QGroupBox" name="groupBox">
       <property name="title">
        <string>Current Position</string>
@@ -103,7 +200,7 @@
       </layout>
      </widget>
     </item>
-    <item row="2" column="0">
+    <item row="3" column="0">
      <widget class="QGroupBox" name="groupBox_2">
       <property name="title">
        <string>Plate Solve</string>
@@ -111,6 +208,18 @@
       <layout class="QGridLayout" name="gridLayout_2">
        <item row="7" column="1">
         <widget class="QPushButton" name="sync_pos_button">
+         <property name="minimumSize">
+          <size>
+           <width>64</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>64</width>
+           <height>16777215</height>
+          </size>
+         </property>
          <property name="text">
           <string>Sync</string>
          </property>
@@ -190,6 +299,18 @@
        </item>
        <item row="8" column="0">
         <widget class="QPushButton" name="solve_image_button">
+         <property name="minimumSize">
+          <size>
+           <width>64</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>64</width>
+           <height>16777215</height>
+          </size>
+         </property>
          <property name="text">
           <string>Solve Image</string>
          </property>
@@ -211,6 +332,18 @@
        </item>
        <item row="7" column="0">
         <widget class="QPushButton" name="solve_file_button">
+         <property name="minimumSize">
+          <size>
+           <width>64</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>64</width>
+           <height>16777215</height>
+          </size>
+         </property>
          <property name="text">
           <string>Solve File</string>
          </property>
@@ -219,7 +352,7 @@
        <item row="6" column="0">
         <widget class="QRadioButton" name="use_astrometry_radio_button">
          <property name="text">
-          <string>Use astronomtry.net</string>
+          <string>Use astrometry.net</string>
          </property>
          <attribute name="buttonGroup">
           <string notr="true">platesolver_choise_button_group</string>
@@ -238,6 +371,18 @@
        </item>
        <item row="8" column="1">
         <widget class="QPushButton" name="plate_solve_setup_button">
+         <property name="minimumSize">
+          <size>
+           <width>64</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>64</width>
+           <height>16777215</height>
+          </size>
+         </property>
          <property name="text">
           <string>Setup</string>
          </property>
@@ -246,7 +391,7 @@
       </layout>
      </widget>
     </item>
-    <item row="3" column="0">
+    <item row="4" column="0">
      <widget class="QGroupBox" name="groupBox_4">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
@@ -352,6 +497,18 @@
            <verstretch>0</verstretch>
           </sizepolicy>
          </property>
+         <property name="minimumSize">
+          <size>
+           <width>64</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>64</width>
+           <height>16777215</height>
+          </size>
+         </property>
          <property name="text">
           <string>Use Solved</string>
          </property>
@@ -365,6 +522,18 @@
            <verstretch>0</verstretch>
           </sizepolicy>
          </property>
+         <property name="minimumSize">
+          <size>
+           <width>96</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>96</width>
+           <height>16777215</height>
+          </size>
+         </property>
          <property name="text">
           <string>Precise Goto</string>
          </property>
@@ -377,6 +546,18 @@
            <horstretch>0</horstretch>
            <verstretch>0</verstretch>
           </sizepolicy>
+         </property>
+         <property name="minimumSize">
+          <size>
+           <width>64</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>64</width>
+           <height>16777215</height>
+          </size>
          </property>
          <property name="text">
           <string>Goto</string>
@@ -393,7 +574,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>346</width>
+     <width>428</width>
      <height>21</height>
     </rect>
    </property>
@@ -404,5 +585,6 @@
  <connections/>
  <buttongroups>
   <buttongroup name="platesolver_choise_button_group"/>
+  <buttongroup name="camera_driver_button_group"/>
  </buttongroups>
 </ui>
