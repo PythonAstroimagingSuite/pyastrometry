@@ -15,7 +15,7 @@ from astropy.coordinates import FK5
 
 from PyQt5 import QtNetwork, QtWidgets
 
-from pyfocusstars4.DeviceBackend import DeviceBackend
+from pyastrometry.DeviceBackend import DeviceBackend
 
 class MaximDLCamera:
     def __init__(self):

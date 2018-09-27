@@ -41,7 +41,6 @@ from PyQt5 import QtCore, QtWidgets
 
 from pyastrometry.DeviceBackendASCOM import DeviceBackendASCOM as Backend
 
-
 from pyastrometry.uic.pyastrometry_uic import Ui_MainWindow
 from pyastrometry.uic.pyastrometry_settings_uic import Ui_Dialog as Ui_SettingsDialog
 
