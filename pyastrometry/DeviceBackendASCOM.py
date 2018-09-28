@@ -1,3 +1,13 @@
+# This shouldnt be used any more!
+#
+# Only here for reference!
+#
+
+import warnings
+
+warnings.filterwarnings('error', category=ImportWarning)
+
+warnings.warn('DeviceBackendASCOM is not long supported!', ImportWarning)
 
 import sys
 import json
@@ -37,7 +47,7 @@ class MaximDLCamera:
 
     # FIXME ignores filename passed to RPC server -
     # probably ought to put saveImage here and use filename?
-    def takeframeCamera(self, expos, filename=None):
+    def takeframeCamera(self, expos):
         logging.info(f'Exposing image for {expos} seconds')
 
         self.cam.Expose(expos, 1, -1)
@@ -48,8 +58,8 @@ class MaximDLCamera:
 
         return True
 
-    def takeframe_saves_file(self):
-        return False
+#    def takeframe_saves_file(self):
+#        return False
 
     def checkexposureCamera(self):
         return self.cam.ImageReady
@@ -226,14 +236,13 @@ class RPCCamera:
     # FIXME this is different than MaximDL where we take
     # frame and then call saveimageCamera() to save it!
     # Here we set exposure time and filename at start!
-    def takeframeCamera(self, expos, filename):
+    def takeframeCamera(self, expos):
         logging.info(f'Exposing image for {expos} seconds')
 
         paramdict = {}
         paramdict['exposure'] = expos
         paramdict['binning'] = self.binning
         paramdict['roi'] = self.roi
-        paramdict['filename'] = filename
         rc = self.send_server_request('take_image', paramdict)
 
         if not rc:
@@ -248,7 +257,38 @@ class RPCCamera:
 
         return True
 
-    def takeframe_saves_file(self):
+    def saveimageCamera(self, path):
+        logging.info(f'RPC:Saving image to {path}')
+
+        paramdict = {}
+
+        paramdict['filename'] = path
+        rc = self.send_server_request('save_image', paramdict)
+
+        if not rc:
+            logging.error('RPC:saveimageCamera - error')
+            return False
+
+        _, reqid = rc
+
+        # FIXME this is clunky
+        # block and wait on result!
+        self.outstanding_reqid = reqid
+        self.outstanding_complete = False
+
+        # FIXME need timeout!
+        while not self.outstanding_complete:
+            time.sleep(0.1)
+
+            # FIXME YUCK wont get response if QtNetwork isnt
+            # getting cycles
+            QtWidgets.QApplication.processEvents()
+
+        resp = self.outstanding_result
+
+        logging.info(f'RPC saveimageCamera resp = {resp}')
+
+        #FIXME need to look at result code
         return True
 
     def checkexposureCamera(self):
@@ -256,11 +296,6 @@ class RPCCamera:
         # FIXME this could break so many ways as it doesnt
         # link up to the actual id expected for method result
         return self.outstanding_complete
-
-    def saveimageCamera(self, path):
-        # this does nothing since RPC Server saves image to a name
-        # for us when we request an exposure
-        return True
 
     def closeimageCamera(self):
         # this does nothing
@@ -374,15 +409,15 @@ class DeviceBackendASCOM(DeviceBackend):
 
             return True
 
-        def takeframeCamera(self, expos, filename):
+        def takeframeCamera(self, expos):
             logging.info(f'Exposing image for {expos} seconds')
 
-            self.driver.takeframeCamera(expos, filename)
+            self.driver.takeframeCamera(expos)
 
             return True
 
-        def takeframe_saves_file(self):
-            return self.driver.takeframe_saves_file()
+#        def takeframe_saves_file(self):
+#            return self.driver.takeframe_saves_file()
 
         def checkexposureCamera(self):
             return self.driver.checkexposureCamera()

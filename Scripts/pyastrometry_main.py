@@ -39,7 +39,13 @@ from astropy.coordinates import Angle
 
 from PyQt5 import QtCore, QtWidgets
 
-from pyastrometry.DeviceBackendASCOM import DeviceBackendASCOM as Backend
+#from pyastrometry.DeviceBackendASCOM import DeviceBackendASCOM as Backend
+
+# FIXME This is confusing to call it Telescope when rest of
+# drivers I have call it Mount
+from pyastrometry.Telescope import Telescope
+from pyastrobackend.RPC.Camera import Camera as RPC_Camera
+from pyastrobackend.MaximDL.Camera import Camera as MaximDL_Camera
 
 from pyastrometry.uic.pyastrometry_uic import Ui_MainWindow
 from pyastrometry.uic.pyastrometry_settings_uic import Ui_Dialog as Ui_SettingsDialog
@@ -624,170 +630,6 @@ class Pinpoint:
         logging.info(f"Plate Solve (J2000)  RA: {self.pinpoint.RightAscension}")
         logging.info(f"                    DEC: {self.pinpoint.Declination}")
 
-class Telescope_OBSOLETE:
-    def __init__(self):
-        self.tel = None
-        self.connected = False
-
-    def show_chooser(self, last_choice):
-        chooser = win32com.client.Dispatch("ASCOM.Utilities.Chooser")
-        chooser.DeviceType="Telescope"
-        mount = chooser.Choose(last_choice)
-        logging.info(f'choice = {mount}')
-        return mount
-
-    def connect_to_telescope(self, driver):
-        if self.connected:
-            logging.warning('connect_to_telescope: already connected!')
-
-        logging.info(f"Connect to telescope driver {driver}")
-        self.tel = win32com.client.Dispatch(driver)
-
-        if self.tel.Connected:
-            logging.info("	->Telescope was already connected")
-        else:
-            self.tel.Connected = True
-            if self.tel.Connected:
-                logging.info("	Connected to telescope now")
-            else:
-                logging.error("	Unable to connect to telescope, expect exception")
-                return False
-
-        self.connected = True
-        return True
-
-    def is_connected(self):
-        return self.connected
-
-    def get_position_jnow(self):
-        if not self.connected:
-            return None
-        time_now = Time(datetime.utcnow(), scale='utc')
-        return SkyCoord(ra=self.tel.RightAscension*u.hour, dec=self.tel.Declination*u.degree, frame='fk5', equinox=Time(time_now.jd, format="jd", scale="utc"))
-
-    def get_position_j2000(self):
-        if not self.connected:
-            return None
-        pos_jnow = self.get_position_jnow()
-        return precess_JNOW_to_J2000(pos_jnow)
-
-# These give errors when I try to use them
-#    def get_target_jnow(self):
-#        try:
-#            time_now = Time(datetime.utcnow(), scale='utc')
-#            return SkyCoord(ra=self.tel.TargetRightAscension*u.hour, dec=self.tel.TargetDeclination*u.degree, frame='fk5', equinox=Time(time_now.jd, format="jd", scale="utc"))
-#        except:
-#            logging.info("Error reading target jnow!")
-#            return None
-#
-#    def get_target_j2000(self):
-#        pos_jnow = self.get_target_jnow()
-#        if pos_jnow is not None:
-#            return precess_JNOW_to_J2000(pos_jnow)
-#        else:
-#            return None
-
-    def sync(self, pos):
-        if not self.connected:
-            return False
-
-        logging.info(f"Syncing to {pos.ra.hour}  {pos.dec.degree}")
-        try:
-            self.tel.SyncToCoordinates(pos.ra.hour, pos.dec.degree)
-        except Exception as e:
-            logging.error('sync() Exception ->', exc_info=True)
-            return False
-
-        return True
-
-    def goto(self, pos):
-        if not self.connected:
-            return False
-        logging.info(f"Goto to {pos.ra.hour}  {pos.dec.degree}")
-        self.tel.SlewToCoordinatesAsync(pos.ra.hour, pos.dec.degree)
-        return True
-
-    def is_slewing(self):
-        if not self.connected:
-            return None
-        return self.tel.Slewing
-
-class Camera_OBSOLETE:
-    def __init__(self):
-        pass
-
-    def connectCamera(self):
-        import pythoncom
-        pythoncom.CoInitialize()
-        import win32com.client
-        self.cam = win32com.client.Dispatch("MaxIm.CCDCamera")
-        self.cam.LinkEnabled = True
-        self.cam.DisableAutoShutDown = True
-
-        return True
-
-    def takeframeCamera(self, expos):
-        logging.info(f'Exposing image for {expos} seconds')
-
-        self.cam.Expose(expos, 1, -1)
-
-        return True
-
-    def checkexposureCamera(self):
-        return self.cam.ImageReady
-
-    def saveimageCamera(self, path):
-        # FIXME make better temp name
-        # FIXME specify cwd as path for file - otherwise not sure where it goes!
-        logging.info(f"saveimageCamera: saving to {path}")
-
-        try:
-            self.cam.SaveImage(path)
-        except:
-            exc_type, exc_value = sys.exc_info()[:2]
-            logging.info('saveimageCamera %s exception with message "%s"' % \
-                              (exc_type.__name__, exc_value))
-            logging.error(f"Error saving {path} in saveimageCamera()!")
-            return False
-
-        return True
-
-    def closeimageCamera(self):
-        # not all backends need this
-        # MAXIM does
-        if self.mainThread:
-            # import win32com.client
-            # app = win32com.client.Dispatch("MaxIm.Application")
-            # app.CurrentDocument.Close
-
-            # alt way
-            self.cam.Document.Close
-        else:
-            # in other threads this is a noop
-            pass
-
-    def getbinningCamera(self):
-        return (self.cam.BinX, self.cam.BinY)
-
-    def setbinningCamera(self, binx, biny):
-        self.cam.BinX = binx
-        self.cam.BinY = biny
-        return True
-
-    def getsizeCamera(self):
-        return (self.cam.CameraXSize, self.cam.CameraYSize)
-
-    def getframeCamera(self):
-        return(self.cam.StartX, self.cam.StartY, self.cam.NumX, self.cam.NumY)
-
-    def setframeCamera(self, minx, miny, width, height):
-        self.cam.StartX = minx
-        self.cam.StartY = miny
-        self.cam.NumX = width
-        self.cam.NumY = height
-
-        return True
-
 class PlateSolveParameters:
     """Contains parameters needed to prime a plate solve engine"""
 
@@ -977,36 +819,27 @@ class MyApp(QtWidgets.QMainWindow):
         self.ui.telescope_driver_select.pressed.connect(self.select_telescope)
         self.ui.telescope_driver_connect.pressed.connect(self.connect_telescope)
 
-#        self.ui.camera_driver_select.pressed.connect(self.select_camera)
-
+        # FIXME This is an ugly section of code
         if self.settings.camera_driver == 'MaximDL':
             self.ui.camera_driver_maxim.setChecked(True)
+            self.cam = RPC_Camera()
         elif self.settings.camera_driver == 'RPC':
             self.ui.camera_driver_rpc.setChecked(True)
+            self.cam = MaximDL_Camera()
         else:
             logging.warning('camera driver not set!  Defaulting to MaximDL')
             self.settings.camera_driver = 'MaximDL'
             self.ui.camera_driver_maxim.setChecked(True)
+            self.cam = MaximDL_Camera()
 
         self.ui.camera_driver_connect.pressed.connect(self.connect_camera)
 
         self.setWindowTitle('pyastrometry v' + VERSION)
 
         # telescope
-        self.tel = Backend.Telescope()
-        #self.tel.connect_to_telescope(self.args.telescope)
+        self.tel = Telescope()
+
         self.ui.telescope_driver_label.setText(self.settings.telescope_driver)
-
-        # connect to camera
-        self.cam = Backend.Camera()
-        #self.cam.connectCamera(self.settings.camera_driver)
-
-        # connect to astrometry.net
-        # FIXME Fix so we only login when needed
-        # FIXME Fix so with no internet this doesnt take a long time to fail
-        # FIXME put API KEY in config file
-#        self.astroclient = Client()
-#        self.astroclient.login('***REMOVED***')
 
         self.ui.solve_file_button.clicked.connect(self.solve_file_cb)
         self.ui.sync_pos_button.clicked.connect(self.sync_pos_cb)
@@ -1114,8 +947,10 @@ class MyApp(QtWidgets.QMainWindow):
     def connect_camera(self):
         if self.ui.camera_driver_maxim.isChecked():
             driver = 'MaximDL'
+            self.cam = MaximDL_Camera()
         elif self.ui.camera_driver_rpc.isChecked():
             driver = 'RPC'
+            self.cam = RPC_Camera()
         else:
             logging.error('connect_camera(): UNKNOWN camera driver result from radio buttons!')
             return
@@ -1258,13 +1093,13 @@ class MyApp(QtWidgets.QMainWindow):
         ff = os.path.join(os.getcwd(), "plate_solve_image.fits")
 
         focus_expos = self.settings.camera_exposure
-        self.cam.takeframeCamera(focus_expos, ff)
+        self.cam.start_exposure(focus_expos)
 
         # give things time to happen (?) I get Maxim not ready errors so slowing it down
         time.sleep(0.25)
 
         elapsed = 0
-        while not self.cam.checkexposureCamera():
+        while not self.cam.check_exposure():
             self.ui.statusbar.showMessage(f"Taking image with camera {elapsed} of {focus_expos} seconds")
             self.app.processEvents()
             time.sleep(0.5)
@@ -1275,14 +1110,8 @@ class MyApp(QtWidgets.QMainWindow):
         # give it some time seems like Maxim isnt ready if we hit it too fast
         time.sleep(0.5)
 
-        # screwy interface for camera
-        # MaximDl will take frame and then we tell it to save
-        # RPC will take frame and save it in one action!
-        # So we only save here if the camera driver didnt save to file
-        # in takeframe
-        if not self.cam.takeframe_saves_file():
-            logging.info(f"Saving image to {ff}")
-            self.cam.saveimageCamera(ff)
+        logging.info(f"Saving image to {ff}")
+        self.cam.save_image_data(ff)
 
         self.solved_j2000 = self.plate_solve_file(ff)
         if self.solved_j2000 is not None:
@@ -1292,15 +1121,15 @@ class MyApp(QtWidgets.QMainWindow):
 
     def setupCCDFrameBinning(self):
         # set camera dimensions to full frame and 1x1 binning
-        (maxx, maxy) = self.cam.getsizeCamera()
+        (maxx, maxy) = self.cam.get_size()
         logging.info("Sensor size is %d x %d", maxx, maxy)
 
         width = maxx
         height = maxy
 
-        self.cam.setframeCamera(0, 0, width, height)
+        self.cam.set_frame(0, 0, width, height)
 
-        self.cam.setbinningCamera(self.settings.camera_binning, self.settings.camera_binning)
+        self.cam.set_binning(self.settings.camera_binning, self.settings.camera_binning)
 
         logging.info("CCD size: %d x %d ", width, height)
         logging.info("CCD bin : %d x %d ", self.settings.camera_binning, self.settings.camera_binning)
