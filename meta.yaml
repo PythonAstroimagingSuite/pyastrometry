@@ -16,7 +16,7 @@ requirements:
    - astropy >=3.0.4
    - configobj >=5.0.6
    - pyqt >=5.9.2
-   - pyastrobackend >= 0.8
+   - pyastroimageview >= 0.8
 
 build:
   number: {{ environ.get('GIT_DESCRIBE_NUMBER', 0) }}
