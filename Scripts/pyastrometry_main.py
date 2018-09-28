@@ -1088,7 +1088,10 @@ class MyApp(QtWidgets.QMainWindow):
         self.ui.statusbar.showMessage("Taking image with camera...")
         self.app.processEvents()
 
-        self.setupCCDFrameBinning()
+        if not self.setupCCDFrameBinning():
+            logging.error('run_solve_image: Unable to setup camera!')
+            CriticalDialog('Could not setup camera!').exec()
+            return
 
         ff = os.path.join(os.getcwd(), "plate_solve_image.fits")
 
@@ -1121,7 +1124,11 @@ class MyApp(QtWidgets.QMainWindow):
 
     def setupCCDFrameBinning(self):
         # set camera dimensions to full frame and 1x1 binning
-        (maxx, maxy) = self.cam.get_size()
+        result = self.cam.get_size()
+        if not result:
+            return False
+
+        (maxx, maxy) = result
         logging.info("Sensor size is %d x %d", maxx, maxy)
 
         width = maxx
@@ -1133,6 +1140,8 @@ class MyApp(QtWidgets.QMainWindow):
 
         logging.info("CCD size: %d x %d ", width, height)
         logging.info("CCD bin : %d x %d ", self.settings.camera_binning, self.settings.camera_binning)
+
+        return True
 
     def plate_solve_file(self, fname):
         """Solve file using user selected method
