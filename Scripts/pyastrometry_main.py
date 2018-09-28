@@ -932,18 +932,6 @@ class MyApp(QtWidgets.QMainWindow):
                                                QtWidgets.QMessageBox.Ok)
                 return
 
-    def select_camera(self):
-        if self.settings.camera_driver:
-            last_choice = self.settings.camera_driver
-        else:
-            last_choice = ''
-
-        camera_choice = self.cam.show_chooser(last_choice)
-        if len(camera_choice) > 0:
-            self.settings.camera_driver = camera_choice
-            self.settings.write()
-            self.ui.camera_driver_label.setText(camera_choice)
-
     def connect_camera(self):
         if self.ui.camera_driver_maxim.isChecked():
             driver = 'MaximDL'
