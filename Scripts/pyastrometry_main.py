@@ -1040,7 +1040,7 @@ class MyApp(QtWidgets.QMainWindow):
                 self.app.processEvents()
                 return
             elif sep > 5:
-                result = YesNoDialog(f'Error in position is {sep:6.2f} degrees.  Slew to correct?')
+                result = YesNoDialog(f'Error in position is {sep:6.2f} degrees.  Slew to correct?').exec()
 
                 if not result:
                     logging.info('User elected to stop precise slew correction')
