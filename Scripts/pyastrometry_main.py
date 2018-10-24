@@ -67,7 +67,10 @@ from pyastrometry.Telescope import Telescope
 
 
 from pyastrometry.PlateSolveSolution import PlateSolveSolution
-from pyastrometry.PlateSolve2 import PlateSolve2
+if BACKEND == 'ASCOM':
+    from pyastrometry.PlateSolve2 import PlateSolve2
+if BACKEND == 'INDI':
+    from pyastrometry.AstrometryNetLocal import AstrometryNetLocal
 from pyastrometry.uic.pyastrometry_uic import Ui_MainWindow
 from pyastrometry.uic.pyastrometry_settings_uic import Ui_Dialog as Ui_SettingsDialog
 
@@ -649,6 +652,8 @@ class MyApp(QtWidgets.QMainWindow):
         if BACKEND == 'INDI':
             self.ui.camera_driver_indi = self.ui.camera_driver_maxim
             self.ui.camera_driver_indi.setText('INDI')
+            
+            self.ui.use_platesolve2_radio_button.setText('astrometry.net local')
 
         self.ui.telescope_driver_select.pressed.connect(self.select_telescope)
         self.ui.telescope_driver_connect.pressed.connect(self.connect_telescope)
@@ -660,6 +665,8 @@ class MyApp(QtWidgets.QMainWindow):
         if not rc:
             logging.error('Failed to connect to backend!')
             sys.exit(-1)
+
+        print(self.backend.indiclient)
 
         if self.settings.camera_driver == 'RPC':
             self.ui.camera_driver_rpc.setChecked(True)
@@ -713,7 +720,12 @@ class MyApp(QtWidgets.QMainWindow):
         self.ui.use_platesolve2_radio_button.setChecked(True)
 
         # platesolve2
-        self.platesolve2 = PlateSolve2(self.settings.platesolve2_location)
+        if BACKEND == 'ASCOM':
+            self.platesolve2 = PlateSolve2(self.settings.platesolve2_location)
+        
+        # astrometry.net local
+        if BACKEND == 'INDI':
+            self.astrometrynetlocal = AstrometryNetLocal('/usr/bin/solve-field')
 
         # used for status bar
         self.activity_bar = QtWidgets.QProgressBar()
@@ -770,11 +782,33 @@ class MyApp(QtWidgets.QMainWindow):
         else:
             last_choice = ''
 
-        mount_choice = self.tel.show_chooser(last_choice)
-        if len(mount_choice) > 0:
-            self.settings.telescope_driver = mount_choice
-            self.settings.write()
-            self.ui.telescope_driver_label.setText(mount_choice)
+        if self.tel.has_chooser():
+            mount_choice = self.tel.show_chooser(last_choice)
+            if len(mount_choice) > 0:
+                self.settings.telescope_driver = mount_choice
+                self.settings.write()
+                self.ui.telescope_driver_label.setText(mount_choice)
+        else:
+            choices = self.backend.getDevicesByClass('telescope')
+            logging.info(f'Possiuble Telescope choices = {choices}')
+
+            if len(choices) < 1:
+                QtWidgets.QMessageBox.critical(None, 'Error', 'No telescope available!',
+                                               QtWidgets.QMessageBox.Ok)
+                return
+
+            if last_choice in choices:
+                selection = choices.index(last_choice)
+            else:
+                selection = 0
+
+            mount_choice, ok = QtWidgets.QInputDialog.getItem(None, 'Choose Telescope Driver',
+                                                               'Driver', choices, selection)
+            if ok:
+                logging.info(f'Telescope choice = {mount_choice}')
+                self.settings.telescope_driver = mount_choice
+                self.settings.write()
+                self.ui.telescope_driver_label.setText(mount_choice)
 
     def connect_telescope(self):
         if self.settings.telescope_driver:
@@ -808,7 +842,11 @@ class MyApp(QtWidgets.QMainWindow):
 
         logging.info(f'connect_camera: driver = {driver}')
 
-        rc = self.cam.connect(driver)
+        if driver == 'INDICamera':
+            # FIXME INDI Driver Name is hardcoded!
+            rc = self.cam.connect('ZWO CCD ASI1600MM-Cool')
+        else:
+            rc = self.cam.connect(driver)
         if not rc:
             QtWidgets.QMessageBox.critical(None, 'Error', 'Unable to connect to camera!',
                                            QtWidgets.QMessageBox.Ok)
@@ -840,6 +878,8 @@ class MyApp(QtWidgets.QMainWindow):
         yesno.setInformativeText(f"Do you want to sync the mount?\n\n" + \
                                  f"Position (J2000): \n" + \
                                  f"     {self.solved_j2000.radec.to_string('hmsdms', sep=':')}\n\n" + \
+                                 f"Position (JNow): \n" + \
+                                 f"     {solved_jnow.to_string('hmsdms', sep=':')}\n\n" + \
                                  f"This is {sep:6.2f} degrees from current position.")
         yesno.setStandardButtons(QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
         result = yesno.exec()
@@ -965,7 +1005,13 @@ class MyApp(QtWidgets.QMainWindow):
         time.sleep(0.5)
 
         logging.info(f"Saving image to {ff}")
-        self.cam.save_image_data(ff)
+        if BACKEND == 'INDI':
+            # FIXME need better way to handle saving image to file!
+            image_data = self.cam.get_image_data()
+            # this is an hdulist
+            image_data.writeto(ff, overwrite=True)
+        else:
+            self.cam.save_image_data(ff)
 
         self.solved_j2000 = self.plate_solve_file(ff)
         if self.solved_j2000 is not None:
@@ -1009,8 +1055,12 @@ class MyApp(QtWidgets.QMainWindow):
         """
         if self.ui.use_astrometry_radio_button.isChecked():
             return self.plate_solve_file_astrometry(fname)
+        # FIXME This is ugly overloading platesolve2 radio button!
         elif self.ui.use_platesolve2_radio_button.isChecked():
-            return self.plate_solve_file_platesolve2(fname)
+            if BACKEND == 'ASCOM':
+                return self.plate_solve_file_platesolve2(fname)
+            elif BACKEND == 'INDI':
+                return self.plate_solve_file_astromentrynetlocal(fname)
         else:
             logging.error("plate_solve_file: Unknown solver selected!!")
             return None
@@ -1051,6 +1101,57 @@ class MyApp(QtWidgets.QMainWindow):
 
         solved_j2000 = self.platesolve2.solve_file(fname, solve_params,
                                                    nfields=self.settings.platesolve2_regions)
+
+        if solved_j2000 is None:
+            logging.error('Plate solve failed!')
+            self.ui.statusbar.showMessage('Plate solve failed!')
+            err = QtWidgets.QMessageBox()
+            err.setIcon(QtWidgets.QMessageBox.Critical)
+            err.setInformativeText('Plate solve failed!')
+            err.setStandardButtons(QtWidgets.QMessageBox.Ok)
+            err.exec()
+            return None
+
+        self.ui.statusbar.showMessage("Plate solve succeeded")
+        self.app.processEvents()
+
+        return solved_j2000
+
+    def plate_solve_file_astromentrynetlocal(self, fname):
+        self.ui.statusbar.showMessage("Solving with astrometry.net locally...")
+        self.app.processEvents()
+
+        radec_pos = read_radec_from_FITS(fname)
+        img_info = read_image_info_from_FITS(fname)
+
+        logging.info(f'{img_info}')
+
+        if radec_pos is None or img_info is None:
+            logging.error(f'plate_solve_file_astromentrynetlocal: error reading radec from FITS file {radec_pos} {img_info}')
+            self.ui.statusbar.showMessage("Error reading FITS file!")
+            err = QtWidgets.QMessageBox()
+            err.setIcon(QtWidgets.QMessageBox.Critical)
+            err.setInformativeText('Error reading FITS file!')
+            err.setStandardButtons(QtWidgets.QMessageBox.Ok)
+            err.exec()
+            return None
+
+        (img_width, img_height, img_binx, img_biny) = img_info
+
+        self.ui.statusbar.showMessage('Starting solve-field')
+        self.app.processEvents()
+
+        # convert fov from arcsec to degrees
+        solve_params = PlateSolveParameters()
+        fov_x = self.settings.pixel_scale_arcsecpx*img_width*img_binx/3600.0*u.deg
+        fov_y = self.settings.pixel_scale_arcsecpx*img_height*img_biny/3600.0*u.deg
+        solve_params.fov_x = Angle(fov_x)
+        solve_params.fov_y = Angle(fov_y)
+        solve_params.radec = radec_pos
+
+        logging.info(f'plate_solve_file_astromentrynetlocal: solve_parms = {solve_params}')
+
+        solved_j2000 = self.astrometrynetlocal.solve_file(fname, solve_params)
 
         if solved_j2000 is None:
             logging.error('Plate solve failed!')
