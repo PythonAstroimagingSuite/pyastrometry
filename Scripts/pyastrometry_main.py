@@ -917,8 +917,8 @@ class MyApp(QtWidgets.QMainWindow):
                                            QtWidgets.QMessageBox.Ok)
             return
 
-        self.settings.camera_driver = driver
-        self.settings.write()
+#        self.settings.camera_driver = driver
+#        self.settings.write()
 
     def sync_pos_cb(self):
         if self.solved_j2000 is None:
