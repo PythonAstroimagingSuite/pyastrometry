@@ -7,10 +7,9 @@ import time
 import json
 import argparse
 import logging
-import subprocess
+#import subprocess
 from datetime import datetime
 from configobj import ConfigObj
-import win32com.client      #needed to load COM objects
 
 try:
     # py3
@@ -43,10 +42,32 @@ from PyQt5 import QtCore, QtWidgets
 
 # FIXME This is confusing to call it Telescope when rest of
 # drivers I have call it Mount
-from pyastrometry.Telescope import Telescope
-from pyastrobackend.RPC.Camera import Camera as RPC_Camera
-from pyastrobackend.MaximDL.Camera import Camera as MaximDL_Camera
 
+from pyastroimageview.BackendConfig import get_backend_for_os
+
+BACKEND = get_backend_for_os()
+
+from pyastrobackend.RPC.Camera import Camera as RPC_Camera
+
+if BACKEND == 'ASCOM':
+    import pyastrobackend.ASCOMBackend.DeviceBackend as Backend
+elif BACKEND == 'INDI':
+    from pyastrobackend.INDIBackend import DeviceBackend as Backend
+else:
+    raise Exception(f'Unknown backend {BACKEND} - choose ASCOM or INDI in BackendConfig.py')
+
+if BACKEND == 'ASCOM':
+    from pyastrobackend.MaximDL.Camera import Camera as MaximDL_Camera
+elif BACKEND == 'INDI':
+    from pyastrobackend.INDIBackend import Camera as INDI_Camera
+else:
+    raise Exception(f'Unknown backend {BACKEND} - choose ASCOM or INDI in BackendConfig.py')
+
+from pyastrometry.Telescope import Telescope
+
+
+from pyastrometry.PlateSolveSolution import PlateSolveSolution
+from pyastrometry.PlateSolve2 import PlateSolve2
 from pyastrometry.uic.pyastrometry_uic import Ui_MainWindow
 from pyastrometry.uic.pyastrometry_settings_uic import Ui_Dialog as Ui_SettingsDialog
 
@@ -454,181 +475,6 @@ def parse_command_line():
 #    def cancelFocusDialog(self):
 #        self.run_focus_dlg.cancel()
 
-class PlateSolve2:
-    """A wrapper of the PlateSolve2 stand alone executable which allows
-    plate solving of images.
-
-    The PlateSolve2 executable is started for every solve request.  The
-    method blocks until PlateSolve2 completes.  When PlateSolve2 completes
-    it will generate a '.apm' file which contains the result of the
-    plate solve operation.  The contains are parsed and the solution is
-    returned to the caller.
-
-    It is important that the catalog path(s) are correctly configured in
-    PlateSolve2 or the operation will fail.
-    """
-
-    def __init__(self, exec_path):
-        """Initialize object so it is ready to handle solve requests
-
-        Parameters
-        ----------
-        exec_path : str
-            Path to the PlateSolve2 executable
-        """
-        self.exec_path = exec_path
-
-    #def solve_file(self, fname, radec, fov_x, fov_y, nfields=99, wait=1):
-
-    def set_exec_path(self, exec_path):
-        self.exec_path = exec_path
-
-    def solve_file(self, fname, solve_params, nfields=99, wait=1):
-        """ Plate solve the specified file using PlateSolve2
-
-        Parameters
-        ----------
-        fname : str
-            Filename of the file to be solved.
-        radec : SkyCoord
-            RA/DEC of the estimated center of the image `fname`.
-        fov_x : Angle
-            Angular width (field of view) of the image `fname`.
-        fov_y : Angle
-            Angular height (field of view) of the image `fname`.
-        nfields : int
-            Number of fields to search (defaults to 99).
-        wait : int
-            Number of seconds to wait when solve is complete before
-            PlateSolve2 closes its window (defaults to 1 second).
-
-        Returns
-        -------
-        solved_position : SkyCoord:
-            The J2000 sky coordinate of the plate solve match, or None if no
-            match was found.
-        angle : Angle
-            Position angle of Y axis expressed as East of North.
-        """
-
-        cmd_line = f'{solve_params.radec.ra.radian},'
-        cmd_line += f'{solve_params.radec.dec.radian},'
-        cmd_line += f'{solve_params.fov_x.radian},'
-        cmd_line += f'{solve_params.fov_y.radian},'
-        cmd_line += f'{nfields},'
-        cmd_line += fname + ','
-        cmd_line += f'{wait}'
-
-        print(cmd_line)
-
-        runargs = [self.exec_path, cmd_line]
-
-        #runargs = ['PlateSolve2.exe', '5.67,1.00,0.025,0.017,99,'+fname+',1']
-
-        ps2_proc = subprocess.Popen(runargs,
-                                    stdin=subprocess.PIPE,
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE,
-                                    universal_newlines=True)
-        poll_value = None
-        while True:
-            poll_value = ps2_proc.poll()
-
-            if poll_value is not None:
-                break
-
-        (base, ext) = os.path.splitext(fname)
-
-        print(base, ext)
-
-        apm_fname = base + '.apm'
-        try:
-            apm_file = open(apm_fname, 'r')
-        except OSError as err:
-            print(f"Error opening apm file: {err}")
-            return None
-
-        # line 1 contains RA, DEC, XYRatio(?)
-        try:
-            line = apm_file.readline()
-            ra_str, dec_str, _ = line.split(',')
-
-            # line 2 contains the plate scale, angle, ?, ?, ?
-            line = apm_file.readline()
-            scale_str, angle_str, _, _, _ = line.split(',')
-
-            # line 3 reports if the solve was valid or not
-            line = apm_file.readline()
-            solve_OK = 'Valid plate solution' in line
-        except Exception as err:
-            print(f"Error parsing apm file! {err}")
-            return None
-
-        print(ra_str, dec_str, scale_str, angle_str, solve_OK)
-
-        try:
-            solved_ra = float(ra_str)
-            solved_dec = float(dec_str)
-            solved_scale = float(scale_str)
-            solved_angle = float(angle_str)
-        except Exception as err:
-            print(f"Error converting apm string values! {err}")
-            return None
-
-        if solve_OK:
-            radec = SkyCoord(ra=solved_ra*u.radian, dec=solved_dec*u.radian, frame='fk5', equinox='J2000')
-            return PlateSolveSolution(radec, pixel_scale=solved_scale, angle=Angle(solved_angle*u.deg))
-        else:
-            return None
-
-class Pinpoint:
-    def __init__(self, catalog_path):
-        logging.info("FIXME Need to make pinpoint params NOT hard coded!!")
-        self.SigmaAboveMean = 2.0      # Amount above noise : default = 4.0
-        self.minimumBrightness = 1000     # Minimum star brightness: default = 200
-        self.CatalogMaximumMagnitude = 12.5     #Maximum catalog magnitude: default = 20.0
-        self.CatalogExpansion = 0.3      # Area expansion of catalog to account for misalignment: default = 0.3
-        self.MinimumStarSize = 2        # Minimum star size in pixels: default = 2
-        self.Catalog = 3        # GSC-ACT; accurate and easy to use
-        self.CatalogPath = catalog_path         #"N:\\Astronomy\\GSCDATA\\GSC"
-
-        # setup PinPoint
-        self.pinpoint = win32com.client.Dispatch("PinPoint.Plate")
-        self.pinpoint.SigmaAboveMean = self.SigmaAboveMean
-        self.pinpoint.minimumBrightness = self.minimumBrightness
-        self.pinpoint.CatalogMaximumMagnitude = self.CatalogMaximumMagnitude
-        self.pinpoint.CatalogExpansion = self.CatalogExpansion
-        self.pinpoint.MinimumStarSize = self.MinimumStarSize
-        self.pinpoint.Catalog = self.Catalog
-        self.pinpoint.CatalogPath = self.CatalogPath
-
-    def solve(self, fname, curpos, pixscale):
-        self.pinpoint.AttachFITS(fname)
-
-        cur_ra = curpos.ra.degree
-        cur_dec = curpos.dec.degree
-
-        logging.info(f"{cur_ra} {cur_dec}")
-        self.pinpoint.RightAscension = cur_ra
-        self.pinpoint.Declination = cur_dec
-
-        self.pinpoint.ArcSecPerPixelHoriz = pixscale
-        self.pinpoint.ArcSecPerPixelVert = pixscale
-
-        logging.info('Pinpoint - Finding stars')
-        self.pinpoint.FindImageStars()
-
-        stars = self.pinpoint.ImageStars
-        logging.info(f'Pinpoint - Found {stars.count} image stars')
-
-        self.pinpoint.FindCatalogStars()
-        stars = self.pinpoint.CatalogStars
-
-        logging.info(f'Pinpoint - Found {stars.count} catalog stars')
-        self.pinpoint.Solve()
-
-        logging.info(f"Plate Solve (J2000)  RA: {self.pinpoint.RightAscension}")
-        logging.info(f"                    DEC: {self.pinpoint.Declination}")
 
 class PlateSolveParameters:
     """Contains parameters needed to prime a plate solve engine"""
@@ -682,23 +528,6 @@ class PlateSolveParameters:
 #        return retstr
 
 
-class PlateSolveSolution:
-    """Stores solution from plate solve engine"""
-    def __init__(self, radec, pixel_scale, angle):
-        """Create solution object
-
-        Parameters
-        ----------
-        radec : SkyCoord
-            RA/DEC of center of image.
-        pixel_scale : float
-            Pixel scale in arc-seconds/pixel
-        angle : Angle
-            Sky roll angle of image.
-        """
-        self.radec = radec
-        self.pixel_scale = pixel_scale
-        self.angle = angle
 
 class ProgramSettings:
     """Stores program settings which can be saved persistently"""
@@ -816,28 +645,51 @@ class MyApp(QtWidgets.QMainWindow):
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
 
+        # FIXME NASTY but we reuse the 'maxim' radio button for INDI
+        if BACKEND == 'INDI':
+            self.ui.camera_driver_indi = self.ui.camera_driver_maxim
+            self.ui.camera_driver_indi.setText('INDI')
+
         self.ui.telescope_driver_select.pressed.connect(self.select_telescope)
         self.ui.telescope_driver_connect.pressed.connect(self.connect_telescope)
 
         # FIXME This is an ugly section of code
-        if self.settings.camera_driver == 'MaximDL':
-            self.ui.camera_driver_maxim.setChecked(True)
-            self.cam = RPC_Camera()
-        elif self.settings.camera_driver == 'RPC':
+        self.backend = Backend()
+
+        rc = self.backend.connect()
+        if not rc:
+            logging.error('Failed to connect to backend!')
+            sys.exit(-1)
+
+        if self.settings.camera_driver == 'RPC':
             self.ui.camera_driver_rpc.setChecked(True)
-            self.cam = MaximDL_Camera()
+            self.cam = RPC_Camera()
         else:
-            logging.warning('camera driver not set!  Defaulting to MaximDL')
-            self.settings.camera_driver = 'MaximDL'
-            self.ui.camera_driver_maxim.setChecked(True)
-            self.cam = MaximDL_Camera()
+            if BACKEND == 'ASCOM':
+                if self.settings.camera_driver is None:
+                    logging.warning('camera driver not set!  Defaulting to MaximDL')
+                    self.settings.camera_driver = 'MaximDL'
+
+                if self.settings.camera_driver == 'MaximDL':
+                    self.ui.camera_driver_maxim.setChecked(True)
+                    self.cam = MaximDL_Camera()
+            elif BACKEND == 'INDI':
+                if self.settings.camera_driver is None:
+                    logging.warning('camera driver not set!  Defaulting to INDI')
+                    self.settings.camera_driver = 'INDICamera'
+
+                if self.settings.camera_driver == 'INDICamera':
+                    self.ui.camera_driver_indi.setChecked(True)
+                    self.cam = INDI_Camera(self.backend)
 
         self.ui.camera_driver_connect.pressed.connect(self.connect_camera)
 
         self.setWindowTitle('pyastrometry v' + VERSION)
 
         # telescope
-        self.tel = Telescope()
+        self.tel = Telescope(self.backend)
+
+
 
         self.ui.telescope_driver_label.setText(self.settings.telescope_driver)
 
@@ -933,15 +785,26 @@ class MyApp(QtWidgets.QMainWindow):
                 return
 
     def connect_camera(self):
-        if self.ui.camera_driver_maxim.isChecked():
-            driver = 'MaximDL'
-            self.cam = MaximDL_Camera()
-        elif self.ui.camera_driver_rpc.isChecked():
-            driver = 'RPC'
-            self.cam = RPC_Camera()
-        else:
-            logging.error('connect_camera(): UNKNOWN camera driver result from radio buttons!')
-            return
+        if BACKEND == 'ASCOM':
+            if self.ui.camera_driver_maxim.isChecked():
+                driver = 'MaximDL'
+                self.cam = MaximDL_Camera()
+            elif self.ui.camera_driver_rpc.isChecked():
+                driver = 'RPC'
+                self.cam = RPC_Camera()
+            else:
+                logging.error('connect_camera(): UNKNOWN camera driver result from radio buttons!')
+                return
+        elif BACKEND == 'INDI':
+            if self.ui.camera_driver_indi.isChecked():
+                driver = 'INDICamera'
+                self.cam = INDI_Camera(self.backend)
+            elif self.ui.camera_driver_rpc.isChecked():
+                driver = 'RPC'
+                self.cam = RPC_Camera()
+            else:
+                logging.error('connect_camera(): UNKNOWN camera driver result from radio buttons!')
+                return
 
         logging.info(f'connect_camera: driver = {driver}')
 

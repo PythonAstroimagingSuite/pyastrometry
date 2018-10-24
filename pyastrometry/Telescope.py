@@ -6,12 +6,21 @@ from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.coordinates import FK5
 
-# FIXME Need some way in future to select which mount backend is used!
-from pyastrobackend.ASCOM.Mount import Mount as ASCOM_Mount
+from pyastroimageview.BackendConfig import get_backend_for_os
 
-class Telescope(ASCOM_Mount):
-    def __init__(self):
-        super().__init__()
+BACKEND = get_backend_for_os()
+
+if BACKEND == 'ASCOM':
+    from pyastrobackend.ASCOM.Mount import Mount as MountClass
+elif BACKEND == 'INDI':
+    from pyastrobackend.INDIBackend import Mount as MountClass
+else:
+    raise Exception(f'Unknown backend {BACKEND} - choose ASCOM or INDI in BackendConfig.py')
+
+
+class Telescope(MountClass):
+    def __init__(self, *args):
+        super().__init__(args)
 
 #        self.tel = None
         self.connected = False
