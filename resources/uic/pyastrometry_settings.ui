@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>278</width>
-    <height>404</height>
+    <width>382</width>
+    <height>606</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -95,8 +95,8 @@
      </layout>
     </widget>
    </item>
-   <item row="1" column="0" colspan="2">
-    <widget class="QGroupBox" name="groupBox">
+   <item row="2" column="0" colspan="2">
+    <widget class="QGroupBox" name="platesolve2_groupbox">
      <property name="title">
       <string>PlateSolve2</string>
      </property>
@@ -156,30 +156,46 @@
      </layout>
     </widget>
    </item>
-   <item row="2" column="0" colspan="2">
+   <item row="4" column="0" colspan="2">
+    <widget class="QGroupBox" name="astrometrynetlocal_groupbox">
+     <property name="title">
+      <string>Local Astrometry.net</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_4">
+      <item row="0" column="1" colspan="2">
+       <widget class="QLabel" name="astrometrynetlocal_exec_path_lbl">
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="3">
+       <widget class="QPushButton" name="setup_astrometrynetlocal_loc_button">
+        <property name="text">
+         <string>Setup</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="0">
+       <widget class="QLabel" name="label_18">
+        <property name="text">
+         <string>Program Location</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item row="6" column="0" colspan="2">
     <widget class="QGroupBox" name="groupBox_2">
      <property name="title">
       <string>Astrometry.net</string>
      </property>
      <layout class="QGridLayout" name="gridLayout_2">
-      <item row="0" column="0">
-       <widget class="QLabel" name="label_6">
+      <item row="2" column="0">
+       <widget class="QLabel" name="label_15">
         <property name="text">
-         <string>Timeout</string>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="1">
-       <widget class="QSpinBox" name="astrometry_timeout_spinbox">
-        <property name="maximum">
-         <number>999</number>
-        </property>
-       </widget>
-      </item>
-      <item row="0" column="2">
-       <widget class="QLabel" name="label_7">
-        <property name="text">
-         <string>seconds</string>
+         <string>API Key</string>
         </property>
        </widget>
       </item>
@@ -190,20 +206,10 @@
         </property>
        </widget>
       </item>
-      <item row="1" column="1">
-       <widget class="QSpinBox" name="astrometry_downsample_spinbox">
-        <property name="minimum">
-         <number>1</number>
-        </property>
-        <property name="maximum">
-         <number>4</number>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QLabel" name="label_15">
+      <item row="0" column="2">
+       <widget class="QLabel" name="label_7">
         <property name="text">
-         <string>API Key</string>
+         <string>seconds</string>
         </property>
        </widget>
       </item>
@@ -223,23 +229,34 @@
         </property>
        </widget>
       </item>
+      <item row="1" column="1">
+       <widget class="QSpinBox" name="astrometry_downsample_spinbox">
+        <property name="minimum">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <number>4</number>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="0">
+       <widget class="QLabel" name="label_6">
+        <property name="text">
+         <string>Timeout</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QSpinBox" name="astrometry_timeout_spinbox">
+        <property name="maximum">
+         <number>999</number>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>
-   <item row="3" column="0" colspan="2">
-    <spacer name="verticalSpacer">
-     <property name="orientation">
-      <enum>Qt::Vertical</enum>
-     </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>20</width>
-       <height>5</height>
-      </size>
-     </property>
-    </spacer>
-   </item>
-   <item row="4" column="1">
+   <item row="8" column="0">
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
       <spacer name="horizontalSpacer">
@@ -271,6 +288,19 @@
       </widget>
      </item>
     </layout>
+   </item>
+   <item row="8" column="1">
+    <spacer name="verticalSpacer">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>5</height>
+      </size>
+     </property>
+    </spacer>
    </item>
   </layout>
  </widget>

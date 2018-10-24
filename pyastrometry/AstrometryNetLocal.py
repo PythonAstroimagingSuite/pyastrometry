@@ -59,8 +59,8 @@ class AstrometryNetLocal:
             Position angle of Y axis expressed as East of North.
         """
 
-# example cmdline 
-# /usr/bin/solve-field -O --no-plots --no-verify --resort --no-fits2fits --do^Csample 2 -3 310.521 -4 45.3511 -5 10 --config /etc/astrometry.cfg -W /tmp/solution.wcs plate_solve_image.fits        
+# example cmdline
+# /usr/bin/solve-field -O --no-plots --no-verify --resort --no-fits2fits --do^Csample 2 -3 310.521 -4 45.3511 -5 10 --config /etc/astrometry.cfg -W /tmp/solution.wcs plate_solve_image.fits
 
         # remove any solved files
         filename, extension = os.path.splitext(fname)
@@ -71,28 +71,30 @@ class AstrometryNetLocal:
             os.remove(solved_filename)
 
         cmd_line = self.exec_path
-        cmd_line += ' -O --no-plots --no-verify --resort --no-fits2fits --downsample 2'
+        cmd_line += ' -O --no-plots --no-verify --resort --downsample 2'
+        # this doesnt work with recent solve-field (Oct 2018)
+        #cmd_line += ' --no-fits2fits'
         cmd_line += f' -3 {solve_params.radec.ra.degree}'
         cmd_line += f' -4 {solve_params.radec.dec.degree}'
-        # 10 degree search radius        
+        # 10 degree search radius
         cmd_line += f' -5 10'
         cmd_line += ' --config /etc/astrometry.cfg'
         cmd_line += ' -W /tmp/solution.wcs'
-        
+
         # disable most output files
         #cmd_line += '-N none '
-#        cmd_line += '-W none '         
-#        cmd_line += '-U none '         
-#        cmd_line += '--axy none '         
-#        cmd_line += '-I none '         
-#        cmd_line += '-M none '         
-#        cmd_line += '-R none '         
-#        cmd_line += '-B none '     
+#        cmd_line += '-W none '
+#        cmd_line += '-U none '
+#        cmd_line += '--axy none '
+#        cmd_line += '-I none '
+#        cmd_line += '-M none '
+#        cmd_line += '-R none '
+#        cmd_line += '-B none '
         cmd_line += ' ' + fname
-        
+
         import shlex
         cmd_args = shlex.split(cmd_line)
-       
+
 #        cmd_line += f'{solve_params.fov_x.radian},'
 #        cmd_line += f'{solve_params.fov_y.radian},'
 #        cmd_line += fname + ','
@@ -157,20 +159,20 @@ class AstrometryNetLocal:
             return None
 
         logging.info(f'{solved_ra} {solved_dec} {solved_angle}')
-        
+
         solved_scale = 1.0
         logging.warning('FORCING SCALE TO 1.0 FOR NOW SINCE WE DONT READ IT FROM SOLUTION!')
 
         # load solved FITS and get WCS data
 #        new_fits_filename = filename + '.new'
-#        
+#
 #        w=WCS(new_fits_filename)
-#        
+#
 #        cd1_1 = w.wcs.cd[0][0]
 #        cd1_2 = w.wcs.cd[1][0]
 #        cd2_1 = w.wcs.cd[1][0]
 #        cd2_2 = w.wcs.cd[1][1]
-#        
+#
 #        logging.info(f'w.wcs.cd = {w.wcs.cd}')
 #        logging.info(f'cd1_1 = {cd1_1} cd1_2 = {cd1_2} cd2_1 = {cd2_1} cd2_2 = {cd2_2}')
 #        solved_angle = math.atan2(cd2_1, cd1_1)*180/math.pi
@@ -181,11 +183,11 @@ class AstrometryNetLocal:
 
         radec = SkyCoord(ra=solved_ra*u.degree, dec=solved_dec*u.degree, frame='fk5', equinox='J2000')
         return PlateSolveSolution(radec, pixel_scale=solved_scale, angle=Angle(solved_angle*u.deg))
-        
-        
-        
+
+
+
 # from https://groups.google.com/forum/#!topic/adass.iraf.applications/1J3W3RDacjM
-        
+
 #The transformation from CDELT/CROTA2 to CD is the following.
 #
 #CD1_1 =  CDELT1 * cos (CROTA2)
@@ -217,5 +219,4 @@ class AstrometryNetLocal:
 #CROTA2 = arctan ( CD2_1 / CD1_1)
 #
 #If there is no skew the two expressions for rotation should be the same.
-#If they aren't and the skew is small you can take an average.        
-        
+#If they aren't and the skew is small you can take an average.

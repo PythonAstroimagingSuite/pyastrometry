@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>428</width>
-    <height>651</height>
+    <height>719</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -111,9 +111,9 @@
        <item row="0" column="1">
         <layout class="QHBoxLayout" name="horizontalLayout">
          <item>
-          <widget class="QRadioButton" name="camera_driver_maxim">
+          <widget class="QRadioButton" name="camera_driver_system">
            <property name="text">
-            <string>Maxim DL</string>
+            <string>Default</string>
            </property>
            <attribute name="buttonGroup">
             <string notr="true">camera_driver_button_group</string>
@@ -131,6 +131,33 @@
           </widget>
          </item>
         </layout>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="camera_driver_indi_label">
+         <property name="text">
+          <string>INDI Driver</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QLabel" name="camera_driver_indi_driver_label">
+         <property name="text">
+          <string>TextLabel</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="2">
+        <widget class="QPushButton" name="camera_driver_indi_select">
+         <property name="maximumSize">
+          <size>
+           <width>64</width>
+           <height>16777215</height>
+          </size>
+         </property>
+         <property name="text">
+          <string>Select</string>
+         </property>
+        </widget>
        </item>
       </layout>
      </widget>
@@ -301,13 +328,13 @@
         <widget class="QPushButton" name="solve_image_button">
          <property name="minimumSize">
           <size>
-           <width>64</width>
+           <width>85</width>
            <height>0</height>
           </size>
          </property>
          <property name="maximumSize">
           <size>
-           <width>64</width>
+           <width>4</width>
            <height>16777215</height>
           </size>
          </property>
@@ -352,7 +379,7 @@
        <item row="6" column="0">
         <widget class="QRadioButton" name="use_astrometry_radio_button">
          <property name="text">
-          <string>Use astrometry.net</string>
+          <string>Online astrometry.net</string>
          </property>
          <attribute name="buttonGroup">
           <string notr="true">platesolver_choise_button_group</string>
@@ -360,9 +387,9 @@
         </widget>
        </item>
        <item row="6" column="1">
-        <widget class="QRadioButton" name="use_platesolve2_radio_button">
+        <widget class="QRadioButton" name="use_localsolver_radio_button">
          <property name="text">
-          <string>Use PlateSolve2</string>
+          <string>Local Solver</string>
          </property>
          <attribute name="buttonGroup">
           <string notr="true">platesolver_choise_button_group</string>
@@ -499,13 +526,13 @@
          </property>
          <property name="minimumSize">
           <size>
-           <width>64</width>
+           <width>84</width>
            <height>0</height>
           </size>
          </property>
          <property name="maximumSize">
           <size>
-           <width>64</width>
+           <width>84</width>
            <height>16777215</height>
           </size>
          </property>
@@ -575,7 +602,7 @@
      <x>0</x>
      <y>0</y>
      <width>428</width>
-     <height>21</height>
+     <height>20</height>
     </rect>
    </property>
   </widget>
@@ -584,7 +611,7 @@
  <resources/>
  <connections/>
  <buttongroups>
-  <buttongroup name="platesolver_choise_button_group"/>
   <buttongroup name="camera_driver_button_group"/>
+  <buttongroup name="platesolver_choise_button_group"/>
  </buttongroups>
 </ui>

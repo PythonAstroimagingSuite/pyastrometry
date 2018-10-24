@@ -542,7 +542,6 @@ class ProgramSettings:
         self.telescope_driver = None
         self.camera_driver = None
         self.pixel_scale_arcsecpx = 1.0
-        self.platesolve2_location = "PlateSolve2.exe"
         self.platesolve2_regions = 999
         self.platesolve2_wait_time = 10
         self.astrometry_timeout = 90
@@ -551,6 +550,11 @@ class ProgramSettings:
         self.camera_exposure = 5
         self.camera_binning = 2
         self.precise_slew_limit = 600.0
+
+        if BACKEND == 'ASCOM':
+            self.platesolve2_location = "PlateSolve2.exe"
+        elif BACKEND == 'INDI':
+            self.astrometrynetlocal_location = '/usr/bin/solve-field'
 
     # FIXME This will break HORRIBLY unless passed an attribute already
     #       in the ConfigObj dictionary
@@ -642,18 +646,20 @@ class MyApp(QtWidgets.QMainWindow):
         self.settings = ProgramSettings()
         self.settings.read()
 
+        logging.info(f'startup settings: {self.settings}')
+
         self.app = app
         self.args = args
 
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
 
-        # FIXME NASTY but we reuse the 'maxim' radio button for INDI
+        # 'system' option just means use the 'default for the
+        # platform.  Maxim/DL for Windows/ASCOM and INDI for Linux
         if BACKEND == 'INDI':
-            self.ui.camera_driver_indi = self.ui.camera_driver_maxim
-            self.ui.camera_driver_indi.setText('INDI')
-            
-            self.ui.use_platesolve2_radio_button.setText('astrometry.net local')
+            self.ui.camera_driver_system.setText('INDI')
+        elif BACKEND == 'ASCOM':
+             self.ui.camera_driver_system.setText('Maxim/DL')
 
         self.ui.telescope_driver_select.pressed.connect(self.select_telescope)
         self.ui.telescope_driver_connect.pressed.connect(self.connect_telescope)
@@ -666,8 +672,9 @@ class MyApp(QtWidgets.QMainWindow):
             logging.error('Failed to connect to backend!')
             sys.exit(-1)
 
-        print(self.backend.indiclient)
+        logging.info(f'Configured camera driver is {self.settings.camera_driver}')
 
+        self.cam = None
         if self.settings.camera_driver == 'RPC':
             self.ui.camera_driver_rpc.setChecked(True)
             self.cam = RPC_Camera()
@@ -678,16 +685,35 @@ class MyApp(QtWidgets.QMainWindow):
                     self.settings.camera_driver = 'MaximDL'
 
                 if self.settings.camera_driver == 'MaximDL':
-                    self.ui.camera_driver_maxim.setChecked(True)
+                    self.ui.camera_driver_system.setChecked(True)
                     self.cam = MaximDL_Camera()
+
+                self.set_enable_INDI_camera_controls(False)
             elif BACKEND == 'INDI':
                 if self.settings.camera_driver is None:
                     logging.warning('camera driver not set!  Defaulting to INDI')
                     self.settings.camera_driver = 'INDICamera'
 
-                if self.settings.camera_driver == 'INDICamera':
-                    self.ui.camera_driver_indi.setChecked(True)
+                if self.settings.camera_driver.startswith('INDICamera'):
+                    # We store the actual driver like this:
+                    #
+                    #  'INDICamera:<driver name>
+                    #
+                    # so now pull off driver
+                    if ':' in self.settings.camera_driver:
+                        indi_driver = self.settings.camera_driver.split(':')[1]
+                        self.ui.camera_driver_indi_driver_label.setText(indi_driver)
+                    self.ui.camera_driver_system.setChecked(True)
                     self.cam = INDI_Camera(self.backend)
+
+                self.ui.camera_driver_indi_select.pressed.connect(self.select_indi_camera)
+
+                self.set_enable_INDI_camera_controls(True)
+
+        if self.cam is None:
+            logging.error(f'Unknown camera driver in config file {self.settings.camera_driver}')
+            logging.error('Please correct the config file and rerun.')
+            sys.exit(-1)
 
         self.ui.camera_driver_connect.pressed.connect(self.connect_camera)
 
@@ -695,8 +721,6 @@ class MyApp(QtWidgets.QMainWindow):
 
         # telescope
         self.tel = Telescope(self.backend)
-
-
 
         self.ui.telescope_driver_label.setText(self.settings.telescope_driver)
 
@@ -717,15 +741,15 @@ class MyApp(QtWidgets.QMainWindow):
 
         # choice which solver
         # FIXME make user configurable
-        self.ui.use_platesolve2_radio_button.setChecked(True)
+        self.ui.use_localsolver_radio_button.setChecked(True)
 
         # platesolve2
         if BACKEND == 'ASCOM':
             self.platesolve2 = PlateSolve2(self.settings.platesolve2_location)
-        
+
         # astrometry.net local
         if BACKEND == 'INDI':
-            self.astrometrynetlocal = AstrometryNetLocal('/usr/bin/solve-field')
+            self.astrometrynetlocal = AstrometryNetLocal(self.settings.astrometrynetlocal_location)
 
         # used for status bar
         self.activity_bar = QtWidgets.QProgressBar()
@@ -746,6 +770,11 @@ class MyApp(QtWidgets.QMainWindow):
         self.ui.telescope_driver_connect.setEnabled(not self.tel.is_connected())
         self.ui.telescope_driver_select.setEnabled(not self.tel.is_connected())
         self.ui.camera_driver_connect.setEnabled(not self.cam.is_connected())
+
+    def set_enable_INDI_camera_controls(self, enable):
+        self.ui.camera_driver_indi_label.setEnabled(enable)
+        self.ui.camera_driver_indi_driver_label.setEnabled(enable)
+        self.ui.camera_driver_indi_select.setEnabled(enable)
 
     def show_activity_bar(self):
         self.ui.statusbar.addPermanentWidget(self.activity_bar)
@@ -818,9 +847,40 @@ class MyApp(QtWidgets.QMainWindow):
                                                QtWidgets.QMessageBox.Ok)
                 return
 
+    def select_indi_camera(self):
+
+        last_choice = ''
+        if self.settings.camera_driver:
+            # We store the actual driver like this:
+            #
+            #  'INDICamera:<driver name>
+            #
+            # so now pull off driver
+            if ':' in self.settings.camera_driver:
+                last_choice = self.settings.camera_driver.split(':')[1]
+
+        choices = self.backend.getDevicesByClass('ccd')
+
+        if len(choices) < 1:
+            QtWidgets.QMessageBox.critical(None, 'Error', 'No cameras available!',
+                                           QtWidgets.QMessageBox.Ok)
+            return
+
+        if last_choice in choices:
+            selection = choices.index(last_choice)
+        else:
+            selection = 0
+
+        camera_choice, ok = QtWidgets.QInputDialog.getItem(None, 'Choose Camera Driver',
+                                                           'Driver', choices, selection)
+        if ok:
+            self.settings.camera_driver = 'INDICamera:'+camera_choice
+            self.settings.write()
+            self.ui.camera_driver_indi_driver_label.setText(camera_choice)
+
     def connect_camera(self):
         if BACKEND == 'ASCOM':
-            if self.ui.camera_driver_maxim.isChecked():
+            if self.ui.camera_driver_system.isChecked():
                 driver = 'MaximDL'
                 self.cam = MaximDL_Camera()
             elif self.ui.camera_driver_rpc.isChecked():
@@ -830,7 +890,7 @@ class MyApp(QtWidgets.QMainWindow):
                 logging.error('connect_camera(): UNKNOWN camera driver result from radio buttons!')
                 return
         elif BACKEND == 'INDI':
-            if self.ui.camera_driver_indi.isChecked():
+            if self.ui.camera_driver_system.isChecked():
                 driver = 'INDICamera'
                 self.cam = INDI_Camera(self.backend)
             elif self.ui.camera_driver_rpc.isChecked():
@@ -843,8 +903,13 @@ class MyApp(QtWidgets.QMainWindow):
         logging.info(f'connect_camera: driver = {driver}')
 
         if driver == 'INDICamera':
-            # FIXME INDI Driver Name is hardcoded!
-            rc = self.cam.connect('ZWO CCD ASI1600MM-Cool')
+            if ':' in self.settings.camera_driver:
+                indi_cam_driver = self.settings.camera_driver.split(':')[1]
+                rc = self.cam.connect(indi_cam_driver)
+            else:
+                QtWidgets.QMessageBox.critical(None, 'Error', 'Must configure INDI camera driver first!',
+                                               QtWidgets.QMessageBox.Ok)
+                return
         else:
             rc = self.cam.connect(driver)
         if not rc:
@@ -1056,7 +1121,7 @@ class MyApp(QtWidgets.QMainWindow):
         if self.ui.use_astrometry_radio_button.isChecked():
             return self.plate_solve_file_astrometry(fname)
         # FIXME This is ugly overloading platesolve2 radio button!
-        elif self.ui.use_platesolve2_radio_button.isChecked():
+        elif self.ui.use_localsolver_radio_button.isChecked():
             if BACKEND == 'ASCOM':
                 return self.plate_solve_file_platesolve2(fname)
             elif BACKEND == 'INDI':
@@ -1387,14 +1452,29 @@ class MyApp(QtWidgets.QMainWindow):
 
                 self.ui = Ui_SettingsDialog()
                 self.ui.setupUi(self)
-                self.ui.setup_platesolve2_loc_button.pressed.connect(self.select_platesolve2dir)
+
+                if BACKEND == 'ASCOM':
+                    self.ui.setup_platesolve2_loc_button.pressed.connect(self.select_platesolve2dir)
+                    self.ui.astrometrynetlocal_groupbox.setVisible(False)
+                elif BACKEND == 'INDI':
+                    self.ui.setup_astrometrynetlocal_loc_button.pressed.connect(self.select_astrometrynetlocaldir)
+                    self.ui.platesolve2_groupbox.setVisible(False)
+
+                # FIXME YUCK when hiding group box need window
+                # to shrink!
+                self.layout().setSizeConstraint(QtWidgets.QLayout.SetFixedSize)
+
+
+#                self.ui.formLayout.invalidate()
+#                for i in range(0, 10):
+#                    QtWidgets.QApplication.processEvents()
 
             def select_platesolve2dir(self):
                 ps2_dir = self.ui.platesolve2_exec_path_lbl.text()
                 new_ps2_dir, select_filter = QtWidgets.QFileDialog.getOpenFileName(None,
                                                                    'PlateSolve2.exe Location',
                                                                     ps2_dir,
-                                                                    "Programs (*.exe)",
+                                                                    'Programs (*.exe)',
                                                                     None)
 
                 logging.info(f'select new_ps2_dir: {new_ps2_dir}')
@@ -1404,25 +1484,43 @@ class MyApp(QtWidgets.QMainWindow):
 
                 self.ui.platesolve2_exec_path_lbl.setText(new_ps2_dir)
 
+            def select_astrometrynetlocaldir(self):
+                anet_dir = self.ui.astrometrynetlocal_exec_path_lbl.text()
+                new_anet_dir, select_filter = QtWidgets.QFileDialog.getOpenFileName(None,
+                                                                   'Astrometry.net (local) solve-field Location',
+                                                                    anet_dir,
+                                                                    '',
+                                                                    None)
+        #dlg.setOption(QtWidgets.QFileDialog.DontUseNativeDialog, True)
+        #dlg.setFilter(QtWidgets.QDir.Executable)
+                logging.info(f'select new_anet_dir: {new_anet_dir}')
+
+                if len(new_anet_dir) < 1:
+                    return
+
+                self.ui.astrometrynetlocal_exec_path_lbl.setText(new_anet_dir)
+
+
+
         dlg = EditDialog()
         dlg.ui.astrometry_timeout_spinbox.setValue(self.settings.astrometry_timeout)
         dlg.ui.astrometry_downsample_spinbox.setValue(self.settings.astrometry_downsample_factor)
         dlg.ui.astrometry_apikey.setPlainText(self.settings.astrometry_apikey)
         dlg.ui.pixelscale_spinbox.setValue(self.settings.pixel_scale_arcsecpx)
-        dlg.ui.platesolve2_waittime_spinbox.setValue(self.settings.platesolve2_wait_time)
-        dlg.ui.platesolve2_num_regions_spinbox.setValue(self.settings.platesolve2_regions)
-        dlg.ui.platesolve2_exec_path_lbl.setText(self.settings.platesolve2_location)
+
         dlg.ui.plate_solve_camera_binning_spinbox.setValue(self.settings.camera_binning)
         dlg.ui.plate_solve_camera_exposure_spinbox.setValue(self.settings.camera_exposure)
         dlg.ui.plate_solve_precise_slew_limit_spinbox.setValue(self.settings.precise_slew_limit)
-
+        if BACKEND == 'ASCOM':
+            dlg.ui.platesolve2_waittime_spinbox.setValue(self.settings.platesolve2_wait_time)
+            dlg.ui.platesolve2_num_regions_spinbox.setValue(self.settings.platesolve2_regions)
+            dlg.ui.platesolve2_exec_path_lbl.setText(self.settings.platesolve2_location)
+        elif BACKEND == 'INDI':
+            dlg.ui.astrometrynetlocal_exec_path_lbl.setText(self.settings.astrometrynetlocal_location)
         result = dlg.exec_()
 
         logging.info(f'{result}')
         if result:
-            self.settings.platesolve2_location = dlg.ui.platesolve2_exec_path_lbl.text()
-            self.settings.platesolve2_regions = dlg.ui.platesolve2_num_regions_spinbox.value()
-            self.settings.platesolve2_wait_time = dlg.ui.platesolve2_waittime_spinbox.value()
             self.settings.pixel_scale_arcsecpx = dlg.ui.pixelscale_spinbox.value()
             self.settings.astrometry_timeout = dlg.ui.astrometry_timeout_spinbox.value()
             self.settings.astrometry_downsample_factor = dlg.ui.astrometry_downsample_spinbox.value()
@@ -1432,7 +1530,15 @@ class MyApp(QtWidgets.QMainWindow):
             self.settings.precise_slew_limit = dlg.ui.plate_solve_precise_slew_limit_spinbox.value()
             self.settings.write()
 
-            self.platesolve2.set_exec_path(self.settings.platesolve2_location)
+            if BACKEND == 'ASCOM':
+                self.platesolve2.set_exec_path(self.settings.platesolve2_location)
+                self.settings.platesolve2_location = dlg.ui.platesolve2_exec_path_lbl.text()
+                self.settings.platesolve2_regions = dlg.ui.platesolve2_num_regions_spinbox.value()
+                self.settings.platesolve2_wait_time = dlg.ui.platesolve2_waittime_spinbox.value()
+            elif BACKEND == 'INDI':
+                self.astrometrynetlocal.set_exec_path(self.settings.platesolve2_location)
+                self.settings.astrometrynetlocal_location = dlg.ui.astrometrynetlocal_exec_path_lbl.text()
+
 
 if __name__ == '__main__':
     logging.basicConfig(filename='pyastrometry.log',
