@@ -488,6 +488,10 @@ class PlateSolveParameters:
         self.radec = None
         self.fov_x = None
         self.fov_y = None
+        self.width = None
+        self.height = None
+        self.bin_x = None
+        self.bin_y = None
 
 #    def set_fov(self, fov_x, fov_y):
 #        """Set the fov specification for plate solver.
@@ -542,8 +546,7 @@ class ProgramSettings:
         self.telescope_driver = None
         self.camera_driver = None
         self.pixel_scale_arcsecpx = 1.0
-        self.platesolve2_regions = 999
-        self.platesolve2_wait_time = 10
+
         self.astrometry_timeout = 90
         self.astrometry_downsample_factor = 2
         self.astrometry_apikey = ''
@@ -553,8 +556,11 @@ class ProgramSettings:
 
         if BACKEND == 'ASCOM':
             self.platesolve2_location = "PlateSolve2.exe"
+            self.platesolve2_regions = 999
+            self.platesolve2_wait_time = 10
         elif BACKEND == 'INDI':
             self.astrometrynetlocal_location = '/usr/bin/solve-field'
+            self.astrometrynetlocal_search_rad_deg = 10
 
     # FIXME This will break HORRIBLY unless passed an attribute already
     #       in the ConfigObj dictionary
@@ -750,7 +756,7 @@ class MyApp(QtWidgets.QMainWindow):
         # astrometry.net local
         if BACKEND == 'INDI':
             self.astrometrynetlocal = AstrometryNetLocal(self.settings.astrometrynetlocal_location)
-
+            self.astrometrynetlocal.probe_solve_field_revision()
         # used for status bar
         self.activity_bar = QtWidgets.QProgressBar()
         self.activity_bar.setRange(0, 0)
@@ -791,7 +797,8 @@ class MyApp(QtWidgets.QMainWindow):
         self.store_skycoord_to_label(pos_j2000.radec, self.ui.solve_ra_j2000_label, self.ui.solve_dec_j2000_label)
         pos_jnow = precess_J2000_to_JNOW(pos_j2000.radec)
         self.store_skycoord_to_label(pos_jnow, self.ui.solve_ra_jnow_label, self.ui.solve_dec_jnow_label)
-        self.ui.solve_roll_angle_label.setText(f"{pos_j2000.angle.degree:6.2f}")
+        self.ui.solve_pixel_scale_label.setText(f'{pos_j2000.pixel_scale:5.2f} @ bin x {int(pos_j2000.binning)}')
+        self.ui.solve_roll_angle_label.setText(f'{pos_j2000.angle.degree:6.2f}')
 
     def set_target_position_labels(self, pos_j2000):
         self.ui.target_ra_j2000_entry.setPlainText('  ' + pos_j2000.ra.to_string(u.hour, sep=":", pad=True))
@@ -1161,6 +1168,10 @@ class MyApp(QtWidgets.QMainWindow):
         solve_params.fov_x = Angle(fov_x)
         solve_params.fov_y = Angle(fov_y)
         solve_params.radec = radec_pos
+        solve_params.width = img_width
+        solve_params.height = img_height
+        solve_params.bin_x = img_binx
+        solve_params.bin_y = img_biny
 
         logging.info(f'plate_solve_file_platesolve2: solve_parms = {solve_params}')
 
@@ -1210,14 +1221,19 @@ class MyApp(QtWidgets.QMainWindow):
         solve_params = PlateSolveParameters()
         fov_x = self.settings.pixel_scale_arcsecpx*img_width*img_binx/3600.0*u.deg
         fov_y = self.settings.pixel_scale_arcsecpx*img_height*img_biny/3600.0*u.deg
-        solve_params.pixel_scale = self.settings.pixel_scale_arcsecpx
+        solve_params.pixel_scale = self.settings.pixel_scale_arcsecpx*img_binx
         solve_params.fov_x = Angle(fov_x)
         solve_params.fov_y = Angle(fov_y)
         solve_params.radec = radec_pos
+        solve_params.width = img_width
+        solve_params.height = img_height
+        solve_params.bin_x = img_binx
+        solve_params.bin_y = img_biny
 
         logging.info(f'plate_solve_file_astromentrynetlocal: solve_parms = {solve_params}')
 
-        solved_j2000 = self.astrometrynetlocal.solve_file(fname, solve_params)
+        solved_j2000 = self.astrometrynetlocal.solve_file(fname, solve_params,
+                                                          search_rad=self.settings.astrometrynetlocal_search_rad_deg)
 
         if solved_j2000 is None:
             logging.error('Plate solve failed!')
@@ -1250,7 +1266,7 @@ class MyApp(QtWidgets.QMainWindow):
             CriticalDialog(f'Login to astrometry.net failed -> {e}').exec()
             self.ui.statusbar.showMessage("Login failed")
             self.app.processEvents()
-            return
+            return None
 
         time_start = time.time()
         timeout = self.settings.astrometry_timeout
@@ -1379,7 +1395,10 @@ class MyApp(QtWidgets.QMainWindow):
 
         radec = SkyCoord(ra=final_calib['ra']*u.degree, dec=final_calib['dec']*u.degree, frame='fk5', equinox='J2000')
 
-        return PlateSolveSolution(radec, pixel_scale=final_calib['pixscale'], angle=Angle(final_calib['orientation']*u.deg))
+        _, _, binx, _ = img_info
+        return PlateSolveSolution(radec, pixel_scale=final_calib['pixscale'],
+                                  angle=Angle(final_calib['orientation']*u.deg),
+                                  binning = binx)
 
     def store_skycoord_to_label(self, pos, lbl_ra, lbl_dec):
         lbl_ra.setText('  ' + pos.ra.to_string(u.hour, sep=":", pad=True))
@@ -1501,7 +1520,7 @@ class MyApp(QtWidgets.QMainWindow):
 
                 self.ui.astrometrynetlocal_exec_path_lbl.setText(new_anet_dir)
 
-
+        print(self.settings)
 
         dlg = EditDialog()
         dlg.ui.astrometry_timeout_spinbox.setValue(self.settings.astrometry_timeout)
@@ -1518,6 +1537,8 @@ class MyApp(QtWidgets.QMainWindow):
             dlg.ui.platesolve2_exec_path_lbl.setText(self.settings.platesolve2_location)
         elif BACKEND == 'INDI':
             dlg.ui.astrometrynetlocal_exec_path_lbl.setText(self.settings.astrometrynetlocal_location)
+            dlg.ui.setup_astrometrynetlocal_search_rad_deg.setValue(self.settings.astrometrynetlocal_search_rad_deg)
+
         result = dlg.exec_()
 
         logging.info(f'{result}')
@@ -1532,13 +1553,14 @@ class MyApp(QtWidgets.QMainWindow):
             self.settings.write()
 
             if BACKEND == 'ASCOM':
-                self.platesolve2.set_exec_path(self.settings.platesolve2_location)
                 self.settings.platesolve2_location = dlg.ui.platesolve2_exec_path_lbl.text()
                 self.settings.platesolve2_regions = dlg.ui.platesolve2_num_regions_spinbox.value()
                 self.settings.platesolve2_wait_time = dlg.ui.platesolve2_waittime_spinbox.value()
+                self.platesolve2.set_exec_path(self.settings.platesolve2_location)
             elif BACKEND == 'INDI':
-                self.astrometrynetlocal.set_exec_path(self.settings.platesolve2_location)
                 self.settings.astrometrynetlocal_location = dlg.ui.astrometrynetlocal_exec_path_lbl.text()
+                self.astrometrynetlocal.set_exec_path(self.settings.astrometrynetlocal_location)
+                self.settings.astrometrynetlocal_search_rad_deg = dlg.ui.setup_astrometrynetlocal_search_rad_deg.value()
 
 
 if __name__ == '__main__':

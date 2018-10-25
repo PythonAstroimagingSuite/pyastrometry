@@ -1,6 +1,6 @@
 class PlateSolveSolution:
     """Stores solution from plate solve engine"""
-    def __init__(self, radec, pixel_scale, angle):
+    def __init__(self, radec, pixel_scale, angle, binning):
         """Create solution object
 
         Parameters
@@ -15,3 +15,4 @@ class PlateSolveSolution:
         self.radec = radec
         self.pixel_scale = pixel_scale
         self.angle = angle
+        self.binning = binning

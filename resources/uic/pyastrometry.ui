@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>428</width>
-    <height>748</height>
+    <height>769</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -233,64 +233,10 @@
        <string>Plate Solve</string>
       </property>
       <layout class="QGridLayout" name="gridLayout_2">
-       <item row="7" column="1">
-        <widget class="QPushButton" name="sync_pos_button">
-         <property name="minimumSize">
-          <size>
-           <width>64</width>
-           <height>0</height>
-          </size>
-         </property>
-         <property name="maximumSize">
-          <size>
-           <width>64</width>
-           <height>16777215</height>
-          </size>
-         </property>
-         <property name="text">
-          <string>Sync</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="0">
-        <widget class="QLabel" name="label_7">
-         <property name="text">
-          <string>Solved DEC (J2000)</string>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="0">
-        <widget class="QLabel" name="label_6">
-         <property name="text">
-          <string>Solved DEC (JNow)</string>
-         </property>
-        </widget>
-       </item>
        <item row="0" column="0">
         <widget class="QLabel" name="label_8">
          <property name="text">
           <string>Solved  RA (J2000)</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="1">
-        <widget class="QLabel" name="solve_ra_jnow_label">
-         <property name="text">
-          <string>--:--:--</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="0">
-        <widget class="QLabel" name="label_9">
-         <property name="text">
-          <string>Solved RA (JNow)</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="1">
-        <widget class="QLabel" name="solve_ra_j2000_label">
-         <property name="text">
-          <string>--:--:--</string>
          </property>
         </widget>
        </item>
@@ -301,14 +247,21 @@
          </property>
         </widget>
        </item>
-       <item row="1" column="1">
-        <widget class="QLabel" name="solve_dec_j2000_label">
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_7">
+         <property name="text">
+          <string>Solved DEC (J2000)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QLabel" name="solve_ra_j2000_label">
          <property name="text">
           <string>--:--:--</string>
          </property>
         </widget>
        </item>
-       <item row="5" column="0" colspan="2">
+       <item row="6" column="0" colspan="2">
         <spacer name="horizontalSpacer">
          <property name="orientation">
           <enum>Qt::Horizontal</enum>
@@ -324,7 +277,14 @@
          </property>
         </spacer>
        </item>
-       <item row="8" column="0">
+       <item row="1" column="1">
+        <widget class="QLabel" name="solve_dec_j2000_label">
+         <property name="text">
+          <string>--:--:--</string>
+         </property>
+        </widget>
+       </item>
+       <item row="9" column="0">
         <widget class="QPushButton" name="solve_image_button">
          <property name="minimumSize">
           <size>
@@ -343,21 +303,7 @@
          </property>
         </widget>
        </item>
-       <item row="4" column="1">
-        <widget class="QLabel" name="solve_roll_angle_label">
-         <property name="text">
-          <string>---</string>
-         </property>
-        </widget>
-       </item>
-       <item row="4" column="0">
-        <widget class="QLabel" name="label_10">
-         <property name="text">
-          <string>Angle</string>
-         </property>
-        </widget>
-       </item>
-       <item row="7" column="0">
+       <item row="8" column="0">
         <widget class="QPushButton" name="solve_file_button">
          <property name="minimumSize">
           <size>
@@ -376,7 +322,40 @@
          </property>
         </widget>
        </item>
-       <item row="6" column="0">
+       <item row="3" column="0">
+        <widget class="QLabel" name="label_6">
+         <property name="text">
+          <string>Solved DEC (JNow)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="8" column="1">
+        <widget class="QPushButton" name="sync_pos_button">
+         <property name="minimumSize">
+          <size>
+           <width>64</width>
+           <height>0</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>64</width>
+           <height>16777215</height>
+          </size>
+         </property>
+         <property name="text">
+          <string>Sync</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="0">
+        <widget class="QLabel" name="label_10">
+         <property name="text">
+          <string>Angle (degrees)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="7" column="0">
         <widget class="QRadioButton" name="use_astrometry_radio_button">
          <property name="text">
           <string>Online astrometry.net</string>
@@ -386,17 +365,14 @@
          </attribute>
         </widget>
        </item>
-       <item row="6" column="1">
-        <widget class="QRadioButton" name="use_localsolver_radio_button">
+       <item row="2" column="0">
+        <widget class="QLabel" name="label_9">
          <property name="text">
-          <string>Local Solver</string>
+          <string>Solved RA (JNow)</string>
          </property>
-         <attribute name="buttonGroup">
-          <string notr="true">platesolver_choise_button_group</string>
-         </attribute>
         </widget>
        </item>
-       <item row="8" column="1">
+       <item row="9" column="1">
         <widget class="QPushButton" name="plate_solve_setup_button">
          <property name="minimumSize">
           <size>
@@ -412,6 +388,44 @@
          </property>
          <property name="text">
           <string>Setup</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QLabel" name="solve_ra_jnow_label">
+         <property name="text">
+          <string>--:--:--</string>
+         </property>
+        </widget>
+       </item>
+       <item row="7" column="1">
+        <widget class="QRadioButton" name="use_localsolver_radio_button">
+         <property name="text">
+          <string>Local Solver</string>
+         </property>
+         <attribute name="buttonGroup">
+          <string notr="true">platesolver_choise_button_group</string>
+         </attribute>
+        </widget>
+       </item>
+       <item row="5" column="1">
+        <widget class="QLabel" name="solve_roll_angle_label">
+         <property name="text">
+          <string>---</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QLabel" name="label_14">
+         <property name="text">
+          <string>Pixel Scale (arc/pix) </string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <widget class="QLabel" name="solve_pixel_scale_label">
+         <property name="text">
+          <string>---</string>
          </property>
         </widget>
        </item>

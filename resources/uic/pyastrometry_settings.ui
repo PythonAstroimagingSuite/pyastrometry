@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>382</width>
-    <height>606</height>
+    <height>636</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -33,7 +33,7 @@
       <item row="0" column="0">
        <widget class="QLabel" name="label_8">
         <property name="text">
-         <string>Pixel Scale</string>
+         <string>Pixel Scale (bin x 1)</string>
         </property>
        </widget>
       </item>
@@ -180,6 +180,23 @@
        <widget class="QLabel" name="label_18">
         <property name="text">
          <string>Program Location</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="label_17">
+        <property name="text">
+         <string>Search Radius</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QSpinBox" name="setup_astrometrynetlocal_search_rad_deg">
+        <property name="suffix">
+         <string> degrees</string>
+        </property>
+        <property name="maximum">
+         <number>25</number>
         </property>
        </widget>
       </item>

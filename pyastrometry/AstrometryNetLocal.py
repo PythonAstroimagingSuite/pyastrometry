@@ -1,13 +1,9 @@
 import os
-import math
 import logging
 import subprocess
 from astropy.coordinates import SkyCoord
-from astropy.wcs import WCS
 from astropy import units as u
-from astropy.coordinates import FK5
 from astropy.coordinates import Angle
-from astropy.coordinates import SkyCoord
 
 from pyastrometry.PlateSolveSolution import PlateSolveSolution
 
@@ -25,13 +21,67 @@ class AstrometryNetLocal:
             Path to the astrometry.net executable
         """
         self.exec_path = exec_path
-
-    #def solve_file(self, fname, radec, fov_x, fov_y, nfields=99, wait=1):
+        self.solve_field_revision = None
 
     def set_exec_path(self, exec_path):
         self.exec_path = exec_path
 
-    def solve_file(self, fname, solve_params, wait=1):
+    def probe_solve_field_revision(self):
+
+        # did we do this already
+        if self.solve_field_revision is not None:
+            return self.solve_field_revision
+
+        cmd_args = [self.exec_path, '-h']
+
+        logging.info(f'probe_solve_field_revision cmd_args = {cmd_args}')
+
+        net_proc = subprocess.Popen(cmd_args,
+                                    stdin=subprocess.PIPE,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    universal_newlines=True)
+        poll_value = None
+        while True:
+            poll_value = net_proc.poll()
+            if poll_value is not None:
+                break
+
+
+# output
+#This program is part of the Astrometry.net suite.
+#For details, visit http://astrometry.net.
+#Git URL https://github.com/dstndstn/astrometry.net
+#Revision 0.73, date Thu_Nov_16_08:30:44_2017_-0500.
+
+        rev_str = None
+
+        for l in net_proc.stdout.readlines():
+            logging.info(f'{l.strip()}')
+            if l.startswith('Revision'):
+                fields = l.split()
+                rev_str = fields[1]
+                logging.info(f'found rev -> "{rev_str}"')
+                break
+
+        if rev_str is None:
+            return None
+
+        # clean up rev_str
+        rev_str = ''.join(filter(lambda x: x.isalnum() or x == '.', rev_str))
+        logging.info(f'cleaned rev_str -> "{rev_str}"')
+
+        try:
+            rev = float(rev_str)
+        except:
+            rev = None
+
+        self.solve_field_revision = rev
+
+        return rev
+
+
+    def solve_file(self, fname, solve_params, search_rad=10, wait=1):
         """ Plate solve the specified file using PlateSolve2
 
         Parameters
@@ -59,6 +109,9 @@ class AstrometryNetLocal:
             Position angle of Y axis expressed as East of North.
         """
 
+        # determine installed version of solve-field
+        rev = self.probe_solve_field_revision()
+
 # example cmdline
 # /usr/bin/solve-field -O --no-plots --no-verify --resort --no-fits2fits --do^Csample 2 -3 310.521 -4 45.3511 -5 10 --config /etc/astrometry.cfg -W /tmp/solution.wcs plate_solve_image.fits
 
@@ -72,19 +125,24 @@ class AstrometryNetLocal:
 
         cmd_line = self.exec_path
         cmd_line += ' -O --no-plots --no-verify --resort --downsample 2'
-        # this doesnt work with recent solve-field (Oct 2018)
-        cmd_line += ' --no-fits2fits'
+        # this is only needed for rev of 0.67 or earlier
+        if rev <= 0.67:
+            cmd_line += ' --no-fits2fits'
         cmd_line += f' -3 {solve_params.radec.ra.degree}'
         cmd_line += f' -4 {solve_params.radec.dec.degree}'
-        
+
         # give guess of pixel scale
         if solve_params.pixel_scale is not None:
             scale = solve_params.pixel_scale
             cmd_line += f' -u arcsecperpix'
             cmd_line += f' -L {0.9*scale} -H {1.1*scale}'
-        
-        # 10 degree search radius
-        cmd_line += f' -5 10'
+
+        # search radius - default to 10 if not given
+        if search_rad is None:
+            search_rad = 10
+
+        cmd_line += f' -5 {search_rad}'
+
         cmd_line += ' --config /etc/astrometry.cfg'
         cmd_line += ' -W /tmp/solution.wcs'
 
@@ -139,6 +197,7 @@ class AstrometryNetLocal:
         ra_str = None
         dec_str = None
         ang_str = None
+        fov_x_str = None
         for l in net_proc.stdout.readlines():
             ll = ''.join(filter(lambda x: x.isalnum() or x.isspace() or x == '.', l))
             print(ll)
@@ -154,6 +213,8 @@ class AstrometryNetLocal:
                 # should look like:
                 # Field rotation angle up is 1.12149 degrees E of N.
                 ang_str = fields[5]
+            elif 'Field size' in ll:
+                fov_x_str = fields[2]
 
         logging.info(f'{ra_str} {dec_str} {ang_str}')
 
@@ -161,35 +222,27 @@ class AstrometryNetLocal:
             solved_ra = float(ra_str)
             solved_dec = float(dec_str)
             solved_angle = float(ang_str)
-        except:
-            logging.error('Failed to parse solution')
+
+            # fov is given in arcmin so convert to arcsec
+            fov_x = float(fov_x_str)*60.0
+
+            logging.info(f'solved fov = {fov_x} arcsec')
+            if solve_params.width is not None:
+                solved_scale = fov_x / solve_params.width
+                logging.info(f'using given width of {solve_params.width} pixel scale is {solved_scale} arcsec/pix')
+            else:
+                solved_scale = None
+                logging.warning('No width given so pixel scale not computed!')
+
+        except Exception as e:
+            logging.exception('Failed to parse solution')
             return None
 
-        logging.info(f'{solved_ra} {solved_dec} {solved_angle}')
-
-        solved_scale = 1.0
-        logging.warning('FORCING SCALE TO 1.0 FOR NOW SINCE WE DONT READ IT FROM SOLUTION!')
-
-        # load solved FITS and get WCS data
-#        new_fits_filename = filename + '.new'
-#
-#        w=WCS(new_fits_filename)
-#
-#        cd1_1 = w.wcs.cd[0][0]
-#        cd1_2 = w.wcs.cd[1][0]
-#        cd2_1 = w.wcs.cd[1][0]
-#        cd2_2 = w.wcs.cd[1][1]
-#
-#        logging.info(f'w.wcs.cd = {w.wcs.cd}')
-#        logging.info(f'cd1_1 = {cd1_1} cd1_2 = {cd1_2} cd2_1 = {cd2_1} cd2_2 = {cd2_2}')
-#        solved_angle = math.atan2(cd2_1, cd1_1)*180/math.pi
-#        solved_scale = math.sqrt(cd1_1**2 + cd2_1**2)
-#        solved_ra = w.wcs.crval[0]
-#        solved_dec = w.wcs.crval[1]
-#        logging.info(f'solved_ra = {solved_ra} solved_dec={solved_dec} solved_angle={solved_angle} solved_scale = {solved_scale}')
+        logging.info(f'{solved_ra} {solved_dec} {solved_angle} {solved_scale}')
 
         radec = SkyCoord(ra=solved_ra*u.degree, dec=solved_dec*u.degree, frame='fk5', equinox='J2000')
-        return PlateSolveSolution(radec, pixel_scale=solved_scale, angle=Angle(solved_angle*u.deg))
+        return PlateSolveSolution(radec, pixel_scale=solved_scale,
+                                  angle=Angle(solved_angle*u.deg), binning=solve_params.bin_x)
 
 
 

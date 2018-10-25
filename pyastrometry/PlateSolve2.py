@@ -1,5 +1,7 @@
 import os
 import subprocess
+from astropy import units as u
+from astropy.coordinates import Angle
 from astropy.coordinates import SkyCoord
 from pyastrometry.PlateSolveSolution import PlateSolveSolution
 
@@ -126,6 +128,7 @@ class PlateSolve2:
 
         if solve_OK:
             radec = SkyCoord(ra=solved_ra*u.radian, dec=solved_dec*u.radian, frame='fk5', equinox='J2000')
-            return PlateSolveSolution(radec, pixel_scale=solved_scale, angle=Angle(solved_angle*u.deg))
+            return PlateSolveSolution(radec, pixel_scale=solved_scale,
+                                      angle=Angle(solved_angle*u.deg), binning=solve_params.bin_x)
         else:
             return None
