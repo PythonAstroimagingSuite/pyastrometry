@@ -131,8 +131,8 @@ class AstrometryNetLocal:
         cmd_line += f' -3 {solve_params.radec.ra.degree}'
         cmd_line += f' -4 {solve_params.radec.dec.degree}'
 
-        # give guess of pixel scale
-        if solve_params.pixel_scale is not None:
+        # give guess of pixel scale unless given as 0
+        if solve_params.pixel_scale is not None and solve_params.pixel_scale > 0:
             scale = solve_params.pixel_scale
             cmd_line += f' -u arcsecperpix'
             cmd_line += f' -L {0.9*scale} -H {1.1*scale}'
