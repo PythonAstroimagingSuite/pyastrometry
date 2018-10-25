@@ -1059,6 +1059,12 @@ class MyApp(QtWidgets.QMainWindow):
         ff = os.path.join(os.getcwd(), "plate_solve_image.fits")
 
         focus_expos = self.settings.camera_exposure
+        # reset frame to full sensor
+        self.cam.set_binning(1, 1)
+        width, height = self.cam.get_size()
+        self.cam.set_frame(0, 0, width, height)
+        logging.info(f'setting binning to {self.settings.camera_binning}')
+        self.cam.set_binning(self.settings.camera_binning, self.settings.camera_binning)
         self.cam.start_exposure(focus_expos)
 
         # give things time to happen (?) I get Maxim not ready errors so slowing it down
