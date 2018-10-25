@@ -73,9 +73,16 @@ class AstrometryNetLocal:
         cmd_line = self.exec_path
         cmd_line += ' -O --no-plots --no-verify --resort --downsample 2'
         # this doesnt work with recent solve-field (Oct 2018)
-        #cmd_line += ' --no-fits2fits'
+        cmd_line += ' --no-fits2fits'
         cmd_line += f' -3 {solve_params.radec.ra.degree}'
         cmd_line += f' -4 {solve_params.radec.dec.degree}'
+        
+        # give guess of pixel scale
+        if solve_params.pixel_scale is not None:
+            scale = solve_params.pixel_scale
+            cmd_line += f' -u arcsecperpix'
+            cmd_line += f' -L {0.9*scale} -H {1.1*scale}'
+        
         # 10 degree search radius
         cmd_line += f' -5 10'
         cmd_line += ' --config /etc/astrometry.cfg'

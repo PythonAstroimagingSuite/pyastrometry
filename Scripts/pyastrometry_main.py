@@ -1210,6 +1210,7 @@ class MyApp(QtWidgets.QMainWindow):
         solve_params = PlateSolveParameters()
         fov_x = self.settings.pixel_scale_arcsecpx*img_width*img_binx/3600.0*u.deg
         fov_y = self.settings.pixel_scale_arcsecpx*img_height*img_biny/3600.0*u.deg
+        solve_params.pixel_scale = self.settings.pixel_scale_arcsecpx
         solve_params.fov_x = Angle(fov_x)
         solve_params.fov_y = Angle(fov_y)
         solve_params.radec = radec_pos
