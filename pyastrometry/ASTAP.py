@@ -7,8 +7,8 @@ from astropy.coordinates import Angle
 
 from pyastrometry.PlateSolveSolution import PlateSolveSolution
 
-class AstrometryNetLocal:
-    """A wrapper of the astrometry.net local server  which allows
+class ASTAP:
+    """A wrapper of the astap local server  which allows
     plate solving of images.
     """
 
@@ -18,84 +18,20 @@ class AstrometryNetLocal:
         Parameters
         ----------
         exec_path : str
-            Path to the astrometry.net executable
+            Path to the astap executable
         """
         self.exec_path = exec_path
         self.solve_field_revision = None
 
-    def set_exec_path(self, exec_path):
-        self.exec_path = exec_path
 
-    def probe_solve_field_revision(self):
-
-        # did we do this already
-        if self.solve_field_revision is not None:
-            return self.solve_field_revision
-
-        cmd_args = [self.exec_path, '-h']
-
-        logging.info(f'probe_solve_field_revision cmd_args = {cmd_args}')
-
-        net_proc = subprocess.Popen(cmd_args,
-                                    stdin=subprocess.PIPE,
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE,
-                                    universal_newlines=True)
-        poll_value = None
-        while True:
-            poll_value = net_proc.poll()
-            if poll_value is not None:
-                break
-
-
-# output
-#This program is part of the Astrometry.net suite.
-#For details, visit http://astrometry.net.
-#Git URL https://github.com/dstndstn/astrometry.net
-#Revision 0.73, date Thu_Nov_16_08:30:44_2017_-0500.
-
-        rev_str = None
-
-        for l in net_proc.stdout.readlines():
-            logging.info(f'{l.strip()}')
-            if l.startswith('Revision'):
-                fields = l.split()
-                rev_str = fields[1]
-                logging.info(f'found rev -> "{rev_str}"')
-                break
-
-        if rev_str is None:
-            return None
-
-        # clean up rev_str
-        rev_str = ''.join(filter(lambda x: x.isalnum() or x == '.', rev_str))
-        logging.info(f'cleaned rev_str -> "{rev_str}"')
-
-        try:
-            rev = float(rev_str)
-        except:
-            rev = None
-
-        self.solve_field_revision = rev
-
-        return rev
-
-
-    def solve_file(self, fname, solve_params, downsample=2, search_rad=10, wait=1):
+    def solve_file(self, fname, solve_params, search_rad=10, wait=1):
         """ Plate solve the specified file using PlateSolve2
 
         Parameters
         ----------
         fname : str
             Filename of the file to be solved.
-        radec : SkyCoord
-            RA/DEC of the estimated center of the image `fname`.
-        fov_x : Angle
-            Angular width (field of view) of the image `fname`.
-        fov_y : Angle
-            Angular height (field of view) of the image `fname`.
-        nfields : int
-            Number of fields to search (defaults to 99).
+
         wait : int
             Number of seconds to wait when solve is complete before
             PlateSolve2 closes its window (defaults to 1 second).
@@ -109,62 +45,25 @@ class AstrometryNetLocal:
             Position angle of Y axis expressed as East of North.
         """
 
-        # determine installed version of solve-field
-        rev = self.probe_solve_field_revision()
-
 # example cmdline
-# /usr/bin/solve-field -O --no-plots --no-verify --resort --no-fits2fits --do^Csample 2 -3 310.521 -4 45.3511 -5 10 --config /etc/astrometry.cfg -W /tmp/solution.wcs plate_solve_image.fits
-
-        # remove any solved files
-        filename, extension = os.path.splitext(fname)
-        solved_filename = filename + '.solved'
-        logging.info(f'{filename} {extension} {solved_filename}')
-        if os.path.isfile(solved_filename):
-            logging.info(f'Removing existing solved file {solved_filename}')
-            os.remove(solved_filename)
+# /usr/bin/SDYSP -f <fits-file> -r <search-rad> -fov <fov> -ra <ra_guess> -dec <dec_guess> -z <downsample>
 
         cmd_line = self.exec_path
-        cmd_line += ' -O --no-plots --no-verify --resort'
-        cmd_line += f' --downsample {downsample}'
-        # this is only needed for rev of 0.67 or earlier
-        if rev <= 0.67:
-            cmd_line += ' --no-fits2fits'
-        cmd_line += f' -3 {solve_params.radec.ra.degree}'
-        cmd_line += f' -4 {solve_params.radec.dec.degree}'
+        cmd_line += f' -ra {solve_params.radec.ra.degree}'
+        cmd_line += f' -dec {solve_params.radec.dec.degree}'
 
-        # give guess of pixel scale unless given as 0
-        if solve_params.pixel_scale is not None and solve_params.pixel_scale > 0:
-            scale = solve_params.pixel_scale
-            cmd_line += f' -u arcsecperpix'
-            cmd_line += f' -L {0.9*scale} -H {1.1*scale}'
+        cmd_line += f' -fov {solve_params.fov_x.degree}'
 
         # search radius - default to 10 if not given
         if search_rad is None:
             search_rad = 10
 
-        cmd_line += f' -5 {search_rad}'
+        cmd_line += f' -r {search_rad}'
 
-        cmd_line += ' --config /etc/astrometry.cfg'
-        cmd_line += ' -W /tmp/solution.wcs'
-
-        # disable most output files
-        #cmd_line += '-N none '
-#        cmd_line += '-W none '
-#        cmd_line += '-U none '
-#        cmd_line += '--axy none '
-#        cmd_line += '-I none '
-#        cmd_line += '-M none '
-#        cmd_line += '-R none '
-#        cmd_line += '-B none '
-        cmd_line += ' ' + fname
+        cmd_line += ' -f ' + fname
 
         import shlex
         cmd_args = shlex.split(cmd_line)
-
-#        cmd_line += f'{solve_params.fov_x.radian},'
-#        cmd_line += f'{solve_params.fov_y.radian},'
-#        cmd_line += fname + ','
-#        cmd_line += f'{wait}'
 
         logging.info(f'cmd_line for astrometry.net local = "{cmd_line}"')
         logging.info(f'cmd_args for astrometry.net local = "{cmd_args}"')
@@ -182,13 +81,6 @@ class AstrometryNetLocal:
             if poll_value is not None:
                 break
 
-        # see if solve succeeded
-        if os.path.isfile(solved_filename):
-            logging.info('Solved file found!')
-        else:
-            logging.info('No solved file - solve failed!')
-            return None
-
 # output
 #Field center: (RA,Dec) = (2.101258, 29.091103) deg.
 #Field center: (RA H:M:S, Dec D:M:S) = (00:08:24.302, +29:05:27.971).
@@ -204,18 +96,18 @@ class AstrometryNetLocal:
             print(ll)
             fields = ll.split()
             # look for ra/dec in deg first
-            if 'center' in ll and 'deg' in ll:
+            if 'CRVAL1' in ll:
                 # should look like:
                 # Field center RADec  2.101258 29.091103 deg
-                print(fields)
-                ra_str = fields[3]
-                dec_str = fields[4]
-            elif 'angle' in ll:
+                print('CRVAL1', fields)
+            elif 'CRVAL2' in ll:
                 # should look like:
                 # Field rotation angle up is 1.12149 degrees E of N.
-                ang_str = fields[5]
-            elif 'Field size' in ll:
-                fov_x_str = fields[2]
+                print('CRVAL2', fields)
+            elif 'CRDELT1' in ll:
+                print('CDELT1', fields)
+            elif 'CROTA1' in ll:
+                print('CROTA1', fields)
 
         logging.info(f'{ra_str} {dec_str} {ang_str}')
 

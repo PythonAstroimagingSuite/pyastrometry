@@ -71,6 +71,8 @@ if BACKEND == 'ASCOM':
     from pyastrometry.PlateSolve2 import PlateSolve2
 if BACKEND == 'INDI':
     from pyastrometry.AstrometryNetLocal import AstrometryNetLocal
+    from pyastrometry.ASTAP import ASTAP
+
 from pyastrometry.uic.pyastrometry_uic import Ui_MainWindow
 from pyastrometry.uic.pyastrometry_settings_uic import Ui_Dialog as Ui_SettingsDialog
 
@@ -560,7 +562,9 @@ class ProgramSettings:
             self.platesolve2_wait_time = 10
         elif BACKEND == 'INDI':
             self.astrometrynetlocal_location = '/usr/bin/solve-field'
+            self.astrometrynetlocal_downsample = 2
             self.astrometrynetlocal_search_rad_deg = 10
+            self.ASTAP_location = '/usr/local/bin/astap'
 
     # FIXME This will break HORRIBLY unless passed an attribute already
     #       in the ConfigObj dictionary
@@ -757,6 +761,8 @@ class MyApp(QtWidgets.QMainWindow):
         if BACKEND == 'INDI':
             self.astrometrynetlocal = AstrometryNetLocal(self.settings.astrometrynetlocal_location)
             self.astrometrynetlocal.probe_solve_field_revision()
+            self.ASTAP = ASTAP(self.settings.ASTAP_location)
+
         # used for status bar
         self.activity_bar = QtWidgets.QProgressBar()
         self.activity_bar.setRange(0, 0)
@@ -1139,6 +1145,7 @@ class MyApp(QtWidgets.QMainWindow):
                 return self.plate_solve_file_platesolve2(fname)
             elif BACKEND == 'INDI':
                 return self.plate_solve_file_astromentrynetlocal(fname)
+                #self.plate_solve_file_ASTAP(fname)
         else:
             logging.error("plate_solve_file: Unknown solver selected!!")
             return None
@@ -1199,6 +1206,62 @@ class MyApp(QtWidgets.QMainWindow):
 
         return solved_j2000
 
+    def plate_solve_file_ASTAP(self, fname):
+        self.ui.statusbar.showMessage("Solving with ASTAP...")
+        self.app.processEvents()
+
+        radec_pos = read_radec_from_FITS(fname)
+        img_info = read_image_info_from_FITS(fname)
+
+        logging.info(f'{img_info}')
+
+        if radec_pos is None or img_info is None:
+            logging.error(f'plate_solve_file_platesolve2: error reading radec from FITS file {radec_pos} {img_info}')
+            self.ui.statusbar.showMessage("Error reading FITS file!")
+            err = QtWidgets.QMessageBox()
+            err.setIcon(QtWidgets.QMessageBox.Critical)
+            err.setInformativeText('Error reading FITS file!')
+            err.setStandardButtons(QtWidgets.QMessageBox.Ok)
+            err.exec()
+            return None
+
+        (img_width, img_height, img_binx, img_biny) = img_info
+
+        self.ui.statusbar.showMessage('Starting PlateSolve2')
+        self.app.processEvents()
+
+        # convert fov from arcsec to degrees
+        solve_params = PlateSolveParameters()
+        fov_x = self.settings.pixel_scale_arcsecpx*img_width*img_binx/3600.0*u.deg
+        fov_y = self.settings.pixel_scale_arcsecpx*img_height*img_biny/3600.0*u.deg
+        solve_params.fov_x = Angle(fov_x)
+        solve_params.fov_y = Angle(fov_y)
+        solve_params.radec = radec_pos
+        solve_params.width = img_width
+        solve_params.height = img_height
+        solve_params.bin_x = img_binx
+        solve_params.bin_y = img_biny
+
+        logging.info(f'plate_solve_file_ASTAP: solve_parms = {solve_params}')
+
+        solved_j2000 = self.ASTAP.solve_file(fname, solve_params,
+                                                   )
+
+        if solved_j2000 is None:
+            logging.error('Plate solve failed!')
+            self.ui.statusbar.showMessage('Plate solve failed!')
+            err = QtWidgets.QMessageBox()
+            err.setIcon(QtWidgets.QMessageBox.Critical)
+            err.setInformativeText('Plate solve failed!')
+            err.setStandardButtons(QtWidgets.QMessageBox.Ok)
+            err.exec()
+            return None
+
+        self.ui.statusbar.showMessage("Plate solve succeeded")
+        self.app.processEvents()
+
+        return solved_j2000
+
     def plate_solve_file_astromentrynetlocal(self, fname):
         self.ui.statusbar.showMessage("Solving with astrometry.net locally...")
         self.app.processEvents()
@@ -1236,9 +1299,12 @@ class MyApp(QtWidgets.QMainWindow):
         solve_params.bin_x = img_binx
         solve_params.bin_y = img_biny
 
+        down_val = self.settings.astrometrynetlocal_downsample
+
         logging.info(f'plate_solve_file_astromentrynetlocal: solve_parms = {solve_params}')
 
         solved_j2000 = self.astrometrynetlocal.solve_file(fname, solve_params,
+                                                          downsample=down_val,
                                                           search_rad=self.settings.astrometrynetlocal_search_rad_deg)
 
         if solved_j2000 is None:
@@ -1543,6 +1609,7 @@ class MyApp(QtWidgets.QMainWindow):
             dlg.ui.platesolve2_exec_path_lbl.setText(self.settings.platesolve2_location)
         elif BACKEND == 'INDI':
             dlg.ui.astrometrynetlocal_exec_path_lbl.setText(self.settings.astrometrynetlocal_location)
+            dlg.ui.setup_astrometrynetlocal_downsample.setValue(self.settings.astrometrynetlocal_downsample)
             dlg.ui.setup_astrometrynetlocal_search_rad_deg.setValue(self.settings.astrometrynetlocal_search_rad_deg)
 
         result = dlg.exec_()
@@ -1566,6 +1633,7 @@ class MyApp(QtWidgets.QMainWindow):
             elif BACKEND == 'INDI':
                 self.settings.astrometrynetlocal_location = dlg.ui.astrometrynetlocal_exec_path_lbl.text()
                 self.astrometrynetlocal.set_exec_path(self.settings.astrometrynetlocal_location)
+                self.settings.astrometrynetlocal_downsample = dlg.ui.setup_astrometrynetlocal_downsample.value()
                 self.settings.astrometrynetlocal_search_rad_deg = dlg.ui.setup_astrometrynetlocal_search_rad_deg.value()
 
 

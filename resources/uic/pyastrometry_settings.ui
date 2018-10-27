@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>382</width>
-    <height>636</height>
+    <height>657</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -190,20 +190,37 @@
         </property>
        </widget>
       </item>
-      <item row="2" column="0">
+      <item row="3" column="0">
        <widget class="QLabel" name="label_17">
         <property name="text">
          <string>Search Radius</string>
         </property>
        </widget>
       </item>
-      <item row="2" column="1">
+      <item row="3" column="1">
        <widget class="QSpinBox" name="setup_astrometrynetlocal_search_rad_deg">
         <property name="suffix">
          <string> degrees</string>
         </property>
         <property name="maximum">
          <number>25</number>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="label_19">
+        <property name="text">
+         <string>Downsample</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QSpinBox" name="setup_astrometrynetlocal_downsample">
+        <property name="minimum">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <number>4</number>
         </property>
        </widget>
       </item>
