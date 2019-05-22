@@ -20,7 +20,7 @@ else:
 
 class Telescope(MountClass):
     def __init__(self, *args):
-        super().__init__(args)
+        super().__init__(*args)
 
 #        self.tel = None
         self.connected = False

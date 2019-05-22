@@ -49,7 +49,7 @@ BACKEND = get_backend_for_os()
 from pyastrobackend.RPC.Camera import Camera as RPC_Camera
 
 if BACKEND == 'ASCOM':
-    import pyastrobackend.ASCOMBackend.DeviceBackend as Backend
+    from pyastrobackend.ASCOMBackend import DeviceBackend as Backend
 elif BACKEND == 'INDI':
     from pyastrobackend.INDIBackend import DeviceBackend as Backend
 else:
@@ -507,6 +507,7 @@ class ProgramSettings:
 
         if BACKEND == 'ASCOM':
             self.platesolve2_location = "PlateSolve2.exe"
+            #self.platesolve2_location = "Program\ Files\ \(x86\)/Voyager/PlateSolve2.exe"
             self.platesolve2_regions = 999
             self.platesolve2_wait_time = 10
         elif BACKEND == 'INDI':
@@ -532,10 +533,20 @@ class ProgramSettings:
         else:
             super().__setattr__(attr, value)
 
+#    def _get_config_dir(self):
+#        # by default config file in .config/pyfocusstars directory under home directory
+#        homedir = os.path.expanduser("~")
+#        return os.path.join(homedir, ".config", "pyastrometry_cli")
     def _get_config_dir(self):
-        # by default config file in .config/pyfocusstars directory under home directory
-        homedir = os.path.expanduser("~")
-        return os.path.join(homedir, ".config", "pyastrometry_cli")
+        if os.name == 'nt':
+            config_dir = os.path.expandvars('%APPDATA%\pyastrometry_cli')
+        elif os.name == 'posix':
+            homedir = os.path.expanduser('~')
+            config_dir = os.path.join(homedir, '.config', 'pyastrometry_cli')
+        else:
+            logging.error('ProgramSettings: Unable to determine OS for config_dir loc!')
+            config_dir = None
+        return config_dir
 
     def _get_config_filename(self):
         return os.path.join(self._get_config_dir(), 'default.ini')
@@ -556,7 +567,7 @@ class ProgramSettings:
                               f' already exists and is not a directory!')
                 return False
             else:
-                logging.info('write settings: creating config dir {self._get_config_dir()}')
+                logging.info(f'write settings: creating config dir {self._get_config_dir()}')
                 os.mkdir(self._get_config_dir())
 
         logging.info(f'{self._config.filename}')
@@ -597,7 +608,6 @@ class MyApp:
 
         self.cam = None
         if self.settings.camera_driver == 'RPC':
-            self.ui.camera_driver_rpc.setChecked(True)
             self.cam = RPC_Camera()
         else:
             if BACKEND == 'ASCOM':
@@ -606,10 +616,7 @@ class MyApp:
                     self.settings.camera_driver = 'MaximDL'
 
                 if self.settings.camera_driver == 'MaximDL':
-                    self.ui.camera_driver_system.setChecked(True)
                     self.cam = MaximDL_Camera()
-
-                self.set_enable_INDI_camera_controls(False)
             elif BACKEND == 'INDI':
                 if self.settings.camera_driver is None:
                     logging.warning('camera driver not set!  Defaulting to INDI')
@@ -623,9 +630,12 @@ class MyApp:
             logging.error('Please correct the config file and rerun.')
             sys.exit(-1)
 
-
         # telescope
-        self.tel = Telescope(self.backend)
+        # FIXME Shouldn't have to make separate call for ASCOM!!
+        if BACKEND == 'ASCOM':
+            self.tel = Telescope()
+        elif BACKEND == 'INDI':
+            self.tel = Telescope(self.backend)
 
         # init vars
         self.solved_j2000 = None
@@ -833,6 +843,7 @@ Valid solvers are:
 
         logging.info('Operation complete - exiting')
         self.backend.disconnect()
+        self.settings.write()
         sys.exit(0)
 
 
@@ -860,8 +871,8 @@ Valid solvers are:
 
     def json_print_plate_solution(self, sol):
         return json.dumps({
-                        'ra' : sol.radec.ra.to_string(u.hour, sep=":", pad=True),
-                        'dec' : sol.radec.dec.to_string(alwayssign=True, sep=":", pad=True),
+                        'ra2000' : sol.radec.ra.to_string(u.hour, sep=":", pad=True),
+                        'dec2000' : sol.radec.dec.to_string(alwayssign=True, sep=":", pad=True),
                         'angle' : sol.angle.degree,
                         'pixelscale' : sol.pixel_scale,
                         'binning' : sol.binning
@@ -872,8 +883,16 @@ Valid solvers are:
             logging.error('Cannot SYNC no solved POSITION!')
             return
 
+        logging.debug(f'sync_pos(): J2000 pos is ' \
+                      f'{self.solved_j2000.radec.ra.to_string(u.hour, sep=":", pad=True)} ' \
+                      f'{self.solved_j2000.radec.dec.to_string(alwayssign=True, sep=":", pad=True)}')
+
         # convert to jnow
         solved_jnow = precess_J2000_to_JNOW(self.solved_j2000.radec)
+
+        logging.debug(f'sync_pos(): JNow pos is ' \
+                      f'{solved_jnow.ra.to_string(u.hour, sep=":", pad=True)} ' \
+                      f'{solved_jnow.dec.to_string(alwayssign=True, sep=":", pad=True)}')
 
         # TEST force it to be too far away
 #        offpos = solved_jnow
@@ -1016,7 +1035,7 @@ Valid solvers are:
         # FIXME This is ugly overloading platesolve2 radio button!
         elif self.solver == 'astrometrylocal':
             return self.plate_solve_file_astromentrynetlocal(fname)
-        elif self.sovler == 'platesolve2':
+        elif self.solver == 'platesolve2':
             return self.plate_solve_file_platesolve2(fname)
         else:
             logging.error('plate_solve_file: Unknown solver selected!!')
@@ -1024,7 +1043,6 @@ Valid solvers are:
 
     def plate_solve_file_platesolve2(self, fname):
         logging.info('Solving with PlateSolve2...')
-        self.app.processEvents()
 
         radec_pos = read_radec_from_FITS(fname)
         img_info = read_image_info_from_FITS(fname)
@@ -1271,9 +1289,17 @@ Valid solvers are:
 
         self.target_j2000 = target
 
-        logging.info(f"target = {target}")
+        #logging.info(f"target = {target}")
+        logging.debug(f'target_goto()): Target J2000 ' \
+                      f'{target.ra.to_string(u.hour, sep=":", pad=True)} ' \
+                      f'{target.dec.to_string(alwayssign=True, sep=":", pad=True)}')
 
-        self.tel.goto(precess_J2000_to_JNOW(target))
+        target_jnow = precess_J2000_to_JNOW(target)
+        logging.debug(f'target_goto()): Target JNOW ' \
+                      f'{target_jnow.ra.to_string(u.hour, sep=":", pad=True)} ' \
+                      f'{target_jnow.dec.to_string(alwayssign=True, sep=":", pad=True)}')
+
+        self.tel.goto(target_jnow)
 
         logging.info("goto started!")
 

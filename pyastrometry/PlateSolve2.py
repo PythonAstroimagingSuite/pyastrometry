@@ -1,4 +1,5 @@
 import os
+import logging
 import subprocess
 from astropy import units as u
 from astropy.coordinates import Angle
@@ -67,20 +68,44 @@ class PlateSolve2:
         cmd_line += f'{solve_params.fov_x.radian},'
         cmd_line += f'{solve_params.fov_y.radian},'
         cmd_line += f'{nfields},'
+        #cmd_line += os.path.basename(fname)
+        # ignore wait time
+
         cmd_line += fname + ','
         cmd_line += f'{wait}'
 
-        print(cmd_line)
+        logging.debug(f'platesolve2 command line = |{cmd_line}|')
 
-        runargs = [self.exec_path, cmd_line]
+        # unlink previous solve if any
+        (base, ext) = os.path.splitext(fname)
 
+        #print(base, ext)
+
+        apm_fname = base + '.apm'
+
+        if os.path.isfile(apm_fname):
+            os.unlink(apm_fname)
+
+        #runargs = [self.exec_path, cmd_line]
+        #runargs = ['printargs.bat', cmd_line]
         #runargs = ['PlateSolve2.exe', '5.67,1.00,0.025,0.017,99,'+fname+',1']
+
+        #runargs = 'PlateSolve2.exe ' + cmd_line
+        runargs = self.exec_path + ' ' + cmd_line
+
+        logging.debug(f'platesolve2 runargs = |{runargs}|')
 
         ps2_proc = subprocess.Popen(runargs,
                                     stdin=subprocess.PIPE,
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE,
                                     universal_newlines=True)
+
+        logging.debug('ps2_proc output:')
+        for l in ps2_proc.stdout.readlines():
+            logging.debug(f'ps2_proc: {l.strip()}')
+        logging.debug('end of output')
+
         poll_value = None
         while True:
             poll_value = ps2_proc.poll()
@@ -88,11 +113,6 @@ class PlateSolve2:
             if poll_value is not None:
                 break
 
-        (base, ext) = os.path.splitext(fname)
-
-        print(base, ext)
-
-        apm_fname = base + '.apm'
         try:
             apm_file = open(apm_fname, 'r')
         except OSError as err:
