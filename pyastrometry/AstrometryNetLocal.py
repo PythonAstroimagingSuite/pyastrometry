@@ -34,7 +34,7 @@ class AstrometryNetLocal:
 
         cmd_args = [self.exec_path, '-h']
 
-        logging.info(f'probe_solve_field_revision cmd_args = {cmd_args}')
+        logging.debug(f'probe_solve_field_revision cmd_args = {cmd_args}')
 
         net_proc = subprocess.Popen(cmd_args,
                                     stdin=subprocess.PIPE,
@@ -57,11 +57,11 @@ class AstrometryNetLocal:
         rev_str = None
 
         for l in net_proc.stdout.readlines():
-            logging.info(f'{l.strip()}')
+            logging.debug(f'{l.strip()}')
             if l.startswith('Revision'):
                 fields = l.split()
                 rev_str = fields[1]
-                logging.info(f'found rev -> "{rev_str}"')
+                logging.debug(f'rev str-> "{rev_str}"')
                 break
 
         if rev_str is None:
@@ -69,7 +69,7 @@ class AstrometryNetLocal:
 
         # clean up rev_str
         rev_str = ''.join(filter(lambda x: x.isalnum() or x == '.', rev_str))
-        logging.info(f'cleaned rev_str -> "{rev_str}"')
+        logging.info(f'found astrometrynet local rev_str -> "{rev_str}"')
 
         try:
             rev = float(rev_str)

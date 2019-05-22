@@ -6,7 +6,7 @@ from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.coordinates import FK5
 
-from pyastroimageview.BackendConfig import get_backend_for_os
+from pyastrobackend.BackendConfig import get_backend_for_os
 
 BACKEND = get_backend_for_os()
 
@@ -24,13 +24,13 @@ class Telescope(MountClass):
 
 #        self.tel = None
         self.connected = False
-        
+
         # FIXME Currently INDI uses backend when creating devices and ASCOM
         #       doesnt!
         #       Assume if init has argument it is backend for INDI
         if len(args) > 0:
             self.backend = args[0]
-            
+
     @staticmethod
     def precess_J2000_to_JNOW(pos_J2000):
         """Precess J2000 coordinates to JNOW
