@@ -503,6 +503,7 @@ class ProgramSettings:
         self.camera_exposure = 5
         self.camera_binning = 2
         self.precise_slew_limit = 600.0
+        self.precise_slew_tries = 5
         self.max_allow_sep = 5
 
         if BACKEND == 'ASCOM':
@@ -761,6 +762,7 @@ Valid solvers are:
         parser.add_argument('ra', type=str, help='Target RA (J2000)')
         parser.add_argument('dec', type=str, help='Target DEC (J2000)')
         parser.add_argument('--slewthreshold', type=float, help='Cutoff for precise clew (in arcsec)')
+        parser.add_argument('--slewtries', type=int, help='Number of tries to reach target')
         args, unknown = parser.parse_known_args(sys.argv[2:4])
         if args.ra is None or args.dec is None:
             logging.error('Must supply target RA and DEC (J2000)!')
@@ -782,6 +784,10 @@ Valid solvers are:
         if args.slewthreshold is not None:
             logging.info(f'Setting slew threshold to {args.slewthreshold}')
             self.settings.precise_slew_limit = args.slewthreshold
+
+        if args.slewtries is not None:
+            logging.info(f'Setting # of slew tries to {args.slewtries}')
+            self.settings.precise_slew_tries = args.slewtries
 
     def run(self):
         operation = self.parse_operation()
@@ -916,7 +922,8 @@ Valid solvers are:
             logging.error('target_precise_goto(): target_j2000 is None!')
             sys.exit(1)
 
-        while True:
+        ntries = 0
+        while ntries < self.settings.precise_slew_tries:
             logging.info('Precise slew - solving current position')
 
             curpos_j2000 = self.run_solve_image()
@@ -926,7 +933,7 @@ Valid solvers are:
 
             if curpos_j2000 is None:
                logging.error('Precise slew failed - unable to solve current position.')
-               return
+               return False
 
             self.solved_j2000 = curpos_j2000
             sep = self.solved_j2000.radec.separation(target).degree
@@ -936,7 +943,7 @@ Valid solvers are:
             # slew limit is in arcseconds so convert
             if sep < self.settings.precise_slew_limit/3600.0:
                 logging.info(f'Sep {sep} < threshold {self.settings.precise_slew_limit/3600.0} so quitting')
-                return
+                return True
 #            elif sep > self.settings.max_allow_sep:
 #                logging.error(f'Error in position is {sep:6.2f} degrees > limit of {self.settings.max_allow_sep}')
 #                return
@@ -948,6 +955,9 @@ Valid solvers are:
 
             # slew
             self.target_goto()
+
+        logging.warning('fDid not reach precise slew threshold after {self.settings.precise_slew_tries}!')
+        return False
 
     def run_solve_file(self, fname):
         self.solved_j2000 = self.plate_solve_file(fname)
