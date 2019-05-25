@@ -619,12 +619,17 @@ class MyApp:
                 if self.settings.camera_driver == 'MaximDL':
                     self.cam = MaximDL_Camera()
             elif BACKEND == 'INDI':
-                if self.settings.camera_driver is None:
-                    logging.warning('camera driver not set!  Defaulting to INDI')
-                    self.settings.camera_driver = 'INDICamera'
-
-                if self.settings.camera_driver.startswith('INDICamera'):
+                if self.settings.camera_driver is not None:
                     self.cam = INDI_Camera(self.backend)
+                else:
+                    logging.warning('INDI camera driver not set!')
+
+#                if self.settings.camera_driver is None:
+#                    logging.warning('camera driver not set!  Defaulting to INDI')
+#                    self.settings.camera_driver = 'INDICamera'
+#
+#                if self.settings.camera_driver.startswith('INDICamera'):
+#                    self.cam = INDI_Camera(self.backend)
 
         if self.cam is None:
             logging.error(f'Unknown camera driver in config file {self.settings.camera_driver}')
@@ -714,6 +719,8 @@ Valid solvers are:
         parser.add_argument('--solver', type=str, help='Solver to use')
         parser.add_argument('--pixelscale', type=float, help='Pixel scale (arcsec/pixel)')
         parser.add_argument('--downsample', type=int, help='Downsampling')
+        parser.add_argument('--outfile', type=str, help='Output JSON file with solution')
+        parser.add_argument('--force', action='store_true', help='Overwrite output file')
         args, unknown = parser.parse_known_args(sys.argv)
 
         if args.solver is None:
@@ -734,6 +741,17 @@ Valid solvers are:
         if args.downsample is not None:
             logging.debug(f'Setting astrometry downsample to {args.downsample}')
             self.settings.astrometry_downsample_factor = args.downsample
+
+        if args.outfile is not None:
+            if os.path.isfile(args.outfile):
+                if not args.force:
+                    logging.error(f'Output file {args.outfile} already exists - please remove before running')
+                    sys.exit(1)
+                else:
+                    logging.debug(f'Removing existing output file {args.outfile}')
+                    os.unlink(args.outfile)
+
+        return args.outfile
 
     def parse_filename(self):
         logging.debug('parse_solve_filename')
@@ -793,7 +811,7 @@ Valid solvers are:
         operation = self.parse_operation()
         logging.info(f'operation = {operation}')
 
-        self.parse_solve_params()
+        outfile = self.parse_solve_params()
         logging.info(f'Using solver {self.solver}')
         needdevs = operation in ['solvepos', 'syncpos', 'slewsolve']
         if needdevs:
@@ -821,6 +839,13 @@ Valid solvers are:
                 sys.stdout.write('Plate solve suceeded\n')
                 s = self.json_print_plate_solution(self.solved_j2000)
                 sys.stdout.write(s + '\n')
+
+                if outfile is not None:
+                    logging.info(f'Writing solution to file {outfile}')
+                    f = open(outfile, 'w')
+                    s = self.json_print_plate_solution(self.solved_j2000)
+                    f.write(s + '\n')
+                    f.close()
 
                 if operation == 'syncpos':
                     self.parse_sync()

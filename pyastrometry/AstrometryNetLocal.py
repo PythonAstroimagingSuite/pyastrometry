@@ -1,6 +1,8 @@
 import os
+import math
 import logging
 import subprocess
+import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 from astropy.coordinates import Angle
@@ -146,6 +148,7 @@ class AstrometryNetLocal:
 
         cmd_line += ' --config /etc/astrometry.cfg'
         cmd_line += ' -W /tmp/solution.wcs'
+        cmd_line += ' --crpix-center'
 
         # disable most output files
         #cmd_line += '-N none '
@@ -195,55 +198,115 @@ class AstrometryNetLocal:
 #Field size: 76.07 x 57.4871 arcminutes
 #Field rotation angle: up is 1.12149 degrees E of N
 
-        ra_str = None
-        dec_str = None
-        ang_str = None
-        fov_x_str = None
         for l in net_proc.stdout.readlines():
             ll = ''.join(filter(lambda x: x.isalnum() or x.isspace() or x == '.', l))
             print(ll)
-            fields = ll.split()
-            # look for ra/dec in deg first
-            if 'center' in ll and 'deg' in ll:
-                # should look like:
-                # Field center RADec  2.101258 29.091103 deg
-                print(fields)
-                ra_str = fields[3]
-                dec_str = fields[4]
-            elif 'angle' in ll:
-                # should look like:
-                # Field rotation angle up is 1.12149 degrees E of N.
-                ang_str = fields[5]
-            elif 'Field size' in ll:
-                fov_x_str = fields[2]
 
-        logging.info(f'{ra_str} {dec_str} {ang_str}')
+        # parse solution.wcs
+        from astropy import wcs
+        import astropy.io.fits as pyfits
 
-        try:
-            solved_ra = float(ra_str)
-            solved_dec = float(dec_str)
-            solved_angle = float(ang_str)
+        wcs_hdulist = pyfits.open('/tmp/solution.wcs')
+        #print('wcs_hdulist: ', wcs_hdulist[0], vars(wcs_hdulist[0]))
+        w = wcs.WCS(wcs_hdulist[0].header)
 
-            # fov is given in arcmin so convert to arcsec
-            fov_x = float(fov_x_str)*60.0
+        #print('wcs.wcs=', wcs)
+        #print('vars(wcs.wcs): ',vars(wcs.wcs))
+        #wcs.wcs.print_contents()
+#        print('CRPIX = ', w.wcs.crpix)
+#        print('CD = ', w.wcs.cd)
+#        print('pixel scales = ', wcs.utils.proj_plane_pixel_scales(w))
 
-            logging.info(f'solved fov = {fov_x} arcsec')
-            if solve_params.width is not None:
-                solved_scale = fov_x / solve_params.width
-                logging.info(f'using given width of {solve_params.width} pixel scale is {solved_scale} arcsec/pix')
-            else:
-                solved_scale = None
-                logging.warning('No width given so pixel scale not computed!')
+        solved_ra, solved_dec = w.wcs.crval
+        logging.info(f'solved_ra solved_dec = {solved_ra} {solved_dec}')
+#        solved_scale_x, solved_scale_y = wcs.utils.proj_plane_pixel_scales(w)
 
-        except Exception as e:
-            logging.exception('Failed to parse solution')
-            return None
+        #FIXME just take X scale
+#        solved_scale = solved_scale_x
 
-        logging.info(f'{solved_ra} {solved_dec} {solved_angle} {solved_scale}')
+        # convert CD matrix
+        cd_1_1 = w.wcs.cd[0][0]
+        cd_1_2 = w.wcs.cd[0][1]
+        cd_2_1 = w.wcs.cd[1][0]
+        cd_2_2 = w.wcs.cd[1][1]
+
+        cdelt1 = math.sqrt(cd_1_1**2+cd_2_1**2)
+        cdelt2 = math.sqrt(cd_1_2**2+cd_2_2**2)
+
+        # convention is to set cdelt1 negative if det of CD is negative
+#        if cd_1_1*cd_2_2-cd_1_2*cd_2_2 < 0:
+#            cdelt1 = -cdelt1
+#
+#        logging.info(f'cdelt = {cdelt1*3600:5.2f} {cdelt2*3600:5.2f} arcsec/pixel')
+#
+#        cdel = cdelt1 - cdelt2
+#
+#        logging.debug(f'cd_1_1 cd_2_1 cd_1_2 cd_2_2 = {cd_1_1} {cd_2_1} {cd_1_2} {cd_2_2})')
+#        logging.debug(f'cdelt1 cdelt2 cdel = {cdelt1} {cdelt2} {cdel}')
+
+        # compute angle between North and the positive Y axis of sensor
+        # positive is CCW
+        crota = math.atan2(cd_2_1, cd_1_1)
+        crota_deg = np.rad2deg(crota)
+        logging.info(f'cdelt = {cdelt1*3600:5.2f} {cdelt2*3600:5.2f} arcsec/pixel')
+        logging.debug(f'crota/crota_deg = {crota} {crota_deg}')
+
+        #  get roll angle
+        roll_angle_deg =  -crota_deg
+        logging.info(f'roll_angle_deg = {roll_angle_deg:5.2f}')
+        solved_scale = cdelt1*3600
+        solved_angle = roll_angle_deg
+
+
+#        ra_str = None
+#        dec_str = None
+#        ang_str = None
+#        fov_x_str = None
+#        for l in net_proc.stdout.readlines():
+#            ll = ''.join(filter(lambda x: x.isalnum() or x.isspace() or x == '.', l))
+#            print(ll)
+#            fields = ll.split()
+#            # look for ra/dec in deg first
+#            if 'center' in ll and 'deg' in ll:
+#                # should look like:
+#                # Field center RADec  2.101258 29.091103 deg
+#                print(fields)
+#                ra_str = fields[3]
+#                dec_str = fields[4]
+#            elif 'angle' in ll:
+#                # should look like:
+#                # Field rotation angle up is 1.12149 degrees E of N.
+#                ang_str = fields[5]
+#            elif 'Field size' in ll:
+#                fov_x_str = fields[2]
+#
+#        logging.info(f'{ra_str} {dec_str} {ang_str}')
+#
+#        try:
+#            solved_ra = float(ra_str)
+#            solved_dec = float(dec_str)
+#            solved_angle = float(ang_str)
+#
+#            # fov is given in arcmin so convert to arcsec
+#            fov_x = float(fov_x_str)*60.0
+#
+#            logging.info(f'solved fov = {fov_x} arcsec')
+#            if solve_params.width is not None:
+#                solved_scale = fov_x / solve_params.width
+#                logging.info(f'using given width of {solve_params.width} pixel scale is {solved_scale} arcsec/pix')
+#            else:
+#                solved_scale = None
+#                logging.warning('No width given so pixel scale not computed!')
+#
+#        except Exception as e:
+#            logging.exception('Failed to parse solution')
+#            return None
+#
+#        logging.info(f'{solved_ra} {solved_dec} {solved_angle} {solved_scale}')
 
         radec = SkyCoord(ra=solved_ra*u.degree, dec=solved_dec*u.degree, frame='fk5', equinox='J2000')
         return PlateSolveSolution(radec, pixel_scale=solved_scale,
-                                  angle=Angle(solved_angle*u.deg), binning=solve_params.bin_x)
+                                  angle=Angle(solved_angle*u.degree), binning=solve_params.bin_x)
 
 
 
