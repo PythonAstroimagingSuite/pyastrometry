@@ -257,7 +257,6 @@ class AstrometryNetLocal:
         solved_scale = cdelt1*3600
         solved_angle = roll_angle_deg
 
-
 #        ra_str = None
 #        dec_str = None
 #        ang_str = None
@@ -305,6 +304,8 @@ class AstrometryNetLocal:
 #        logging.info(f'{solved_ra} {solved_dec} {solved_angle} {solved_scale}')
 
         radec = SkyCoord(ra=solved_ra*u.degree, dec=solved_dec*u.degree, frame='fk5', equinox='J2000')
+
+        logging.info(f"AstrometryNetLocal solved coordinates: {radec.to_string('hmsdms', sep=':')}")
         return PlateSolveSolution(radec, pixel_scale=solved_scale,
                                   angle=Angle(solved_angle*u.degree), binning=solve_params.bin_x)
 

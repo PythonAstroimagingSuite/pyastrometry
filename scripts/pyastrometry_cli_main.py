@@ -877,7 +877,6 @@ Valid solvers are:
         self.settings.write()
         sys.exit(0)
 
-
     def connect_telescope(self):
         if self.settings.telescope_driver:
             rc = self.tel.connect_to_telescope(self.settings.telescope_driver)
@@ -954,7 +953,7 @@ Valid solvers are:
             curpos_j2000 = self.run_solve_image()
 
             logging.info('Precise slew - position solved')
-            logging.info(f'solved position is (J2000) {curpos_j2000}')
+            logging.info(f"solved position is (J2000) {curpos_j2000.radec.to_string('hmsdms', sep=':')}")
 
             if curpos_j2000 is None:
                logging.error('Precise slew failed - unable to solve current position.')
