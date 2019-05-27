@@ -36,6 +36,7 @@ from astropy.coordinates import SkyCoord
 from astropy.coordinates import FK5
 from astropy.coordinates import Angle
 
+from pyastroprofile.EquipmentProfile import EquipmentProfile
 
 #from pyastrometry.DeviceBackendASCOM import DeviceBackendASCOM as Backend
 
@@ -493,8 +494,8 @@ class ProgramSettings:
         self._config = ConfigObj(unrepr=True, file_error=True, raise_errors=True)
         self._config.filename = self._get_config_filename()
 
-        self.telescope_driver = None
-        self.camera_driver = None
+        #self.telescope_driver = None
+        #self.camera_driver = None
         self.pixel_scale_arcsecpx = 1.0
 
         self.astrometry_timeout = 90
@@ -605,36 +606,15 @@ class MyApp:
             logging.error('Failed to connect to backend!')
             sys.exit(-1)
 
-        logging.info(f'Configured camera driver is {self.settings.camera_driver}')
-
         self.cam = None
-        if self.settings.camera_driver == 'RPC':
-            self.cam = RPC_Camera()
+
+        if BACKEND == 'ASCOM':
+            self.cam = MaximDL_Camera()
+        elif BACKEND == 'INDI':
+            self.cam = INDI_Camera(self.backend)
         else:
-            if BACKEND == 'ASCOM':
-                if self.settings.camera_driver is None:
-                    logging.warning('camera driver not set!  Defaulting to MaximDL')
-                    self.settings.camera_driver = 'MaximDL'
-
-                if self.settings.camera_driver == 'MaximDL':
-                    self.cam = MaximDL_Camera()
-            elif BACKEND == 'INDI':
-                if self.settings.camera_driver is not None:
-                    self.cam = INDI_Camera(self.backend)
-                else:
-                    logging.warning('INDI camera driver not set!')
-
-#                if self.settings.camera_driver is None:
-#                    logging.warning('camera driver not set!  Defaulting to INDI')
-#                    self.settings.camera_driver = 'INDICamera'
-#
-#                if self.settings.camera_driver.startswith('INDICamera'):
-#                    self.cam = INDI_Camera(self.backend)
-
-        if self.cam is None:
-            logging.error(f'Unknown camera driver in config file {self.settings.camera_driver}')
-            logging.error('Please correct the config file and rerun.')
-            sys.exit(-1)
+            logging.error(f'Unknown BACKEND = {BACKEND}!')
+            sys.exit(1)
 
         # telescope
         # FIXME Shouldn't have to make separate call for ASCOM!!
@@ -642,6 +622,9 @@ class MyApp:
             self.tel = Telescope()
         elif BACKEND == 'INDI':
             self.tel = Telescope(self.backend)
+
+        self.camera_driver = None
+        self.telescope_driver = None
 
         # init vars
         self.solved_j2000 = None
@@ -682,21 +665,31 @@ The accepted commands are:
     def parse_devices(self):
         logging.debug('parse_devices()')
         parser = argparse.ArgumentParser()
+        parser.add_argument('--profile', type=str, help='Name of equipment profile')
         parser.add_argument('--telescope', type=str, help='Name of telescope driver')
         parser.add_argument('--camera', type=str, help='Name of camera driver')
         parser.add_argument('--exposure', type=float, help='Exposure time')
         parser.add_argument('--binning', type=int, help='Camera binning')
         args, unknown = parser.parse_known_args(sys.argv)
 
-        if args.camera is not None:
-            self.settings.camera_driver = args.camera
-        if args.telescope is not None:
-            self.settings.telescope_driver = args.telescope
+        if args.profile is not None:
+            logging.info(f'Using equipment profile {args.profile}')
+            equip_profile = EquipmentProfile('astroprofiles/equipment', args.profile)
+            equip_profile.read()
+            self.camera_driver = equip_profile.camera_driver
+            self.telescope_driver = equip_profile.telescope_driver
 
-        if self.settings.telescope_driver is None:
+        if args.camera is not None:
+            self.camera_driver = args.camera
+
+        if args.telescope is not None:
+            self.telescope_driver = args.telescope
+
+        if self.telescope_driver is None:
             logging.error(f'Must configure telescope driver!')
             sys.exit(1)
-        if self.settings.camera_driver is None:
+
+        if self.camera_driver is None:
             logging.error(f'Must configure camera driver!')
             sys.exit(1)
 
@@ -707,6 +700,11 @@ The accepted commands are:
         if args.binning is not None:
             logging.debug(f'Set camera binning to {args.binning}')
             self.camera_binning = args.binning
+
+        logging.info(f'Using camera_drver = {self.camera_driver}')
+        logging.info(f'Using telescope_driver = {self.telescope_driver}')
+#        logging.info(f'Using camera_exposure = {self.camera_exposure}')
+#        logging.info(f'Using camera_binning = {self.camera_binning}')
 
     def parse_solve_params(self):
         logging.debug('parse_solve_params')
@@ -816,21 +814,21 @@ Valid solvers are:
         needdevs = operation in ['solvepos', 'syncpos', 'slewsolve']
         if needdevs:
             self.parse_devices()
-            logging.info(f'camera/telescope = {self.settings.camera_driver} {self.settings.telescope_driver}')
+            logging.info(f'camera/telescope = {self.camera_driver} {self.telescope_driver}')
 
             rc = self.connect_telescope()
             if not rc:
-                logging.error(f'Could not connec to telescope {self.settings.telescope_driver}!')
+                logging.error(f'Could not connec to telescope {self.telescope_driver}!')
                 sys.exit(1)
             else:
-                logging.info(f'{self.settings.telescope_driver} connected')
+                logging.info(f'{self.telescope_driver} connected')
 
             rc = self.connect_camera()
             if not rc:
-                logging.error(f'Could not connect to camera {self.settings.camera_driver}!')
+                logging.error(f'Could not connect to camera {self.camera_driver}!')
                 sys.exit(1)
             else:
-                logging.info(f'{self.settings.camera_driver} connected')
+                logging.info(f'{self.camera_driver} connected')
 
         if operation == 'solvepos' or operation == 'syncpos':
             logging.debug(f'operation {operation}')
@@ -878,8 +876,8 @@ Valid solvers are:
         sys.exit(0)
 
     def connect_telescope(self):
-        if self.settings.telescope_driver:
-            rc = self.tel.connect_to_telescope(self.settings.telescope_driver)
+        if self.telescope_driver:
+            rc = self.tel.connect_to_telescope(self.telescope_driver)
             return rc
 
     def connect_camera(self):
@@ -893,7 +891,7 @@ Valid solvers are:
         logging.info(f'connect_camera: driver = {driver}')
 
         if driver == 'INDICamera':
-            rc = self.cam.connect(self.settings.camera_driver)
+            rc = self.cam.connect(self.camera_driver)
         else:
             rc = self.cam.connect(driver)
 
