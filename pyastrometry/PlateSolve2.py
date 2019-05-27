@@ -29,6 +29,8 @@ class PlateSolve2:
             Path to the PlateSolve2 executable
         """
         self.exec_path = exec_path
+        
+        logging.debug(f'PlateSolve2(): set exec path to {self.exec_path}')
 
     #def solve_file(self, fname, radec, fov_x, fov_y, nfields=99, wait=1):
 

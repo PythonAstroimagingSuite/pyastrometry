@@ -576,10 +576,12 @@ class ProgramSettings:
         self._config.write()
 
     def read(self):
+        logging.debug(f'ProgramSettings.read(): filename = {self._get_config_filename()}')
         try:
             config = ConfigObj(self._get_config_filename(), unrepr=True,
                                file_error=True, raise_errors=True)
         except:
+            logging.error('Error creating config object in read()', exc_info=True)
             config = None
 
         if config is None:
@@ -587,6 +589,8 @@ class ProgramSettings:
             return False
 
         self._config.merge(config)
+        
+        print(self._config)
         return True
 
 class MyApp:
@@ -597,6 +601,7 @@ class MyApp:
         self.settings.read()
 
         logging.info(f'startup settings: {self.settings}')
+        logging.debug(f'ps2 {self.settings.platesolve2_location}' )
 
         # FIXME This is an ugly section of code
         self.backend = Backend()
