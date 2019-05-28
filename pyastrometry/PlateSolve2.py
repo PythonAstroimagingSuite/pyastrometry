@@ -97,23 +97,23 @@ class PlateSolve2:
 
         logging.debug(f'platesolve2 runargs = |{runargs}|')
 
-        ps2_proc = subprocess.Popen(runargs,
+        with subprocess.Popen(runargs,
                                     stdin=subprocess.PIPE,
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE,
-                                    universal_newlines=True)
+                                    universal_newlines=True) as ps_proc:
 
-        logging.debug('ps2_proc output:')
-        for l in ps2_proc.stdout.readlines():
-            logging.debug(f'ps2_proc: {l.strip()}')
-        logging.debug('end of output')
+            logging.debug('ps2_proc output:')
+            for l in ps_proc.stdout:
+                logging.debug(f'PS2: {l.strip()}')
+            logging.debug('end of output')
 
-        poll_value = None
-        while True:
-            poll_value = ps2_proc.poll()
-
-            if poll_value is not None:
-                break
+#        poll_value = None
+#        while True:
+#            poll_value = ps2_proc.poll()
+#
+#            if poll_value is not None:
+#                break
 
         try:
             apm_file = open(apm_fname, 'r')

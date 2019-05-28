@@ -174,16 +174,19 @@ class AstrometryNetLocal:
 
 #/usr/bin/solve-field -O --no-plots --no-verify --resort --no-fits2fits --do^Csample 2 -3 310.521 -4 45.3511 -5 10 --config /etc/astrometry.cfg -W /tmp/solution.wcs plate_solve_image.fits
 
-        net_proc = subprocess.Popen(cmd_args,
+        with subprocess.Popen(cmd_args,
                                     stdin=subprocess.PIPE,
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE,
-                                    universal_newlines=True)
-        poll_value = None
-        while True:
-            poll_value = net_proc.poll()
-            if poll_value is not None:
-                break
+                                    universal_newlines=True) as net_proc:
+#        poll_value = None
+#        while True:
+#            poll_value = net_proc.poll()
+#            if poll_value is not None:
+#                break
+
+            for l in net_proc.stdout:
+                logging.debug(f'astromentrynetlocal: {l.strip()}')
 
         # see if solve succeeded
         if os.path.isfile(solved_filename):
@@ -198,9 +201,9 @@ class AstrometryNetLocal:
 #Field size: 76.07 x 57.4871 arcminutes
 #Field rotation angle: up is 1.12149 degrees E of N
 
-        for l in net_proc.stdout.readlines():
-            ll = ''.join(filter(lambda x: x.isalnum() or x.isspace() or x == '.', l))
-            print(ll)
+#        for l in net_proc.stdout.readlines():
+#            ll = ''.join(filter(lambda x: x.isalnum() or x.isspace() or x == '.', l))
+#            print(ll)
 
         # parse solution.wcs
         from astropy import wcs
