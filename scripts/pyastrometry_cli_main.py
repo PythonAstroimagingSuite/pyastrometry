@@ -589,7 +589,7 @@ class ProgramSettings:
             return False
 
         self._config.merge(config)
-        
+
         print(self._config)
         return True
 
@@ -601,7 +601,6 @@ class MyApp:
         self.settings.read()
 
         logging.info(f'startup settings: {self.settings}')
-        logging.debug(f'ps2 {self.settings.platesolve2_location}' )
 
         # FIXME This is an ugly section of code
         self.backend = Backend()
