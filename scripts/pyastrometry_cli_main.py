@@ -36,18 +36,15 @@ from astropy.coordinates import SkyCoord
 from astropy.coordinates import FK5
 from astropy.coordinates import Angle
 
-from pyastroprofile.EquipmentProfile import EquipmentProfile
+from pyastroprofile.AstroProfile import AstroProfile
+#from pyastroprofile.EquipmentProfile import EquipmentProfile
 
-#from pyastrometry.DeviceBackendASCOM import DeviceBackendASCOM as Backend
-
-# FIXME This is confusing to call it Telescope when rest of
-# drivers I have call it Mount
 
 from pyastrobackend.BackendConfig import get_backend_for_os
 
 BACKEND = get_backend_for_os()
 
-from pyastrobackend.RPC.Camera import Camera as RPC_Camera
+#from pyastrobackend.RPC.Camera import Camera as RPC_Camera
 
 if BACKEND == 'ASCOM':
     from pyastrobackend.ASCOMBackend import DeviceBackend as Backend
@@ -496,7 +493,7 @@ class ProgramSettings:
 
         #self.telescope_driver = None
         #self.camera_driver = None
-        self.pixel_scale_arcsecpx = 1.0
+        #self.pixel_scale_arcsecpx = 1.0
 
         self.astrometry_timeout = 90
         self.astrometry_downsample_factor = 2
@@ -645,7 +642,6 @@ class MyApp:
             self.astrometrynetlocal.probe_solve_field_revision()
             self.ASTAP = ASTAP(self.settings.ASTAP_location)
 
-
     def parse_operation(self):
         logging.debug('parse_operation()')
         parser = argparse.ArgumentParser(description='Astromentry CLI',
@@ -669,28 +665,30 @@ The accepted commands are:
     def parse_devices(self):
         logging.debug('parse_devices()')
         parser = argparse.ArgumentParser()
-        parser.add_argument('--profile', type=str, help='Name of equipment profile')
-        parser.add_argument('--telescope', type=str, help='Name of telescope driver')
+        parser.add_argument('--profile', type=str, help='Name of astro profile')
+        parser.add_argument('--mount', type=str, help='Name of mount driver')
         parser.add_argument('--camera', type=str, help='Name of camera driver')
         parser.add_argument('--exposure', type=float, help='Exposure time')
         parser.add_argument('--binning', type=int, help='Camera binning')
         args, unknown = parser.parse_known_args(sys.argv)
 
         if args.profile is not None:
-            logging.info(f'Using equipment profile {args.profile}')
-            equip_profile = EquipmentProfile('astroprofiles/equipment', args.profile)
-            equip_profile.read()
-            self.camera_driver = equip_profile.camera_driver
-            self.telescope_driver = equip_profile.telescope_driver
+            logging.info(f'Using astro profile {args.profile}')
+            ap = AstroProfile()
+            ap.read(args.profile)
+            #equip_profile = EquipmentProfile('astroprofiles/equipment', args.profile)
+            #equip_profile.read()
+            self.camera_driver = ap.equipment.camera.driver
+            self.mount_driver = ap.equipment.mount.driver
 
         if args.camera is not None:
             self.camera_driver = args.camera
 
-        if args.telescope is not None:
-            self.telescope_driver = args.telescope
+        if args.mount is not None:
+            self.mount_driver = args.telescope
 
-        if self.telescope_driver is None:
-            logging.error(f'Must configure telescope driver!')
+        if self.mount_driver is None:
+            logging.error(f'Must configure mount driver!')
             sys.exit(1)
 
         if self.camera_driver is None:
@@ -706,7 +704,7 @@ The accepted commands are:
             self.camera_binning = args.binning
 
         logging.info(f'Using camera_drver = {self.camera_driver}')
-        logging.info(f'Using telescope_driver = {self.telescope_driver}')
+        logging.info(f'Using mount_driver = {self.mount_driver}')
 #        logging.info(f'Using camera_exposure = {self.camera_exposure}')
 #        logging.info(f'Using camera_binning = {self.camera_binning}')
 
@@ -718,6 +716,7 @@ Valid solvers are:
     astrometryonline
     astrometrylocal
     platesolve2''')
+        parser.add_argument('--profile', type=str, help='Name of astro profile')
         parser.add_argument('--solver', type=str, help='Solver to use')
         parser.add_argument('--pixelscale', type=float, help='Pixel scale (arcsec/pixel)')
         parser.add_argument('--downsample', type=int, help='Downsampling')
@@ -736,9 +735,24 @@ Valid solvers are:
         else:
             self.solver = args.solver
 
+        # FIXME This is duplicate from parse_devices() need to unify
+        self.pixel_scale_arcsecpx = None
+        if args.profile is not None:
+            logging.info(f'Using astro profile {args.profile}')
+            ap = AstroProfile()
+            ap.read(args.profile)
+            #equip_profile = EquipmentProfile('astroprofiles/equipment', args.profile)
+            #equip_profile.read()
+            self.pixel_scale_arcsecpx = ap.settings.platesolve.get('pixelscale', None)
+
+        # let command line override
         if args.pixelscale is not None:
             logging.debug(f'Setting pixel scale to {args.pixelscale}')
-            self.settings.pixel_scale_arcsecpx = args.pixelscale
+            self.pixel_scale_arcsecpx = args.pixelscale
+
+        if self.pixel_scale_arcsecpx is None:
+            logging.error('Pixel scale not defined on command line or profile!')
+            sys.exit(1)
 
         if args.downsample is not None:
             logging.debug(f'Setting astrometry downsample to {args.downsample}')
@@ -818,14 +832,14 @@ Valid solvers are:
         needdevs = operation in ['solvepos', 'syncpos', 'slewsolve']
         if needdevs:
             self.parse_devices()
-            logging.info(f'camera/telescope = {self.camera_driver} {self.telescope_driver}')
+            logging.info(f'camera/mount = {self.camera_driver} {self.mount_driver}')
 
-            rc = self.connect_telescope()
+            rc = self.connect_mount()
             if not rc:
-                logging.error(f'Could not connec to telescope {self.telescope_driver}!')
+                logging.error(f'Could not connec to mount {self.mount_driver}!')
                 sys.exit(1)
             else:
-                logging.info(f'{self.telescope_driver} connected')
+                logging.info(f'{self.mount_driver} connected')
 
             rc = self.connect_camera()
             if not rc:
@@ -879,9 +893,9 @@ Valid solvers are:
         self.settings.write()
         sys.exit(0)
 
-    def connect_telescope(self):
-        if self.telescope_driver:
-            rc = self.tel.connect_to_telescope(self.telescope_driver)
+    def connect_mount(self):
+        if self.mount_driver:
+            rc = self.tel.connect_to_telescope(self.mount_driver)
             return rc
 
     def connect_camera(self):
@@ -1095,8 +1109,8 @@ Valid solvers are:
 
         # convert fov from arcsec to degrees
         solve_params = PlateSolveParameters()
-        fov_x = self.settings.pixel_scale_arcsecpx*img_width*img_binx/3600.0*u.deg
-        fov_y = self.settings.pixel_scale_arcsecpx*img_height*img_biny/3600.0*u.deg
+        fov_x = self.pixel_scale_arcsecpx*img_width*img_binx/3600.0*u.deg
+        fov_y = self.pixel_scale_arcsecpx*img_height*img_biny/3600.0*u.deg
         solve_params.fov_x = Angle(fov_x)
         solve_params.fov_y = Angle(fov_y)
         solve_params.radec = radec_pos
@@ -1135,8 +1149,8 @@ Valid solvers are:
 
         # convert fov from arcsec to degrees
         solve_params = PlateSolveParameters()
-        fov_x = self.settings.pixel_scale_arcsecpx*img_width*img_binx/3600.0*u.deg
-        fov_y = self.settings.pixel_scale_arcsecpx*img_height*img_biny/3600.0*u.deg
+        fov_x = self.pixel_scale_arcsecpx*img_width*img_binx/3600.0*u.deg
+        fov_y = self.pixel_scale_arcsecpx*img_height*img_biny/3600.0*u.deg
         solve_params.fov_x = Angle(fov_x)
         solve_params.fov_y = Angle(fov_y)
         solve_params.radec = radec_pos
@@ -1174,9 +1188,9 @@ Valid solvers are:
 
         # convert fov from arcsec to degrees
         solve_params = PlateSolveParameters()
-        fov_x = self.settings.pixel_scale_arcsecpx*img_width*img_binx/3600.0*u.deg
-        fov_y = self.settings.pixel_scale_arcsecpx*img_height*img_biny/3600.0*u.deg
-        solve_params.pixel_scale = self.settings.pixel_scale_arcsecpx*img_binx
+        fov_x = self.pixel_scale_arcsecpx*img_width*img_binx/3600.0*u.deg
+        fov_y = self.pixel_scale_arcsecpx*img_height*img_biny/3600.0*u.deg
+        solve_params.pixel_scale = self.pixel_scale_arcsecpx*img_binx
         solve_params.fov_x = Angle(fov_x)
         solve_params.fov_y = Angle(fov_y)
         solve_params.radec = radec_pos
@@ -1223,7 +1237,7 @@ Valid solvers are:
 
         kwargs = {}
         kwargs['scale_units'] = 'arcsecperpix'
-        kwargs['scale_est'] = self.settings.pixel_scale_arcsecpx
+        kwargs['scale_est'] = self.pixel_scale_arcsecpx
 
         # if image already binned lets skip having astrometry.net downsample
         downsample = self.settings.astrometry_downsample_factor
@@ -1346,105 +1360,6 @@ Valid solvers are:
                 break
             time.sleep(1)
 
-#    def edit_settings_cb(self):
-#        class EditDialog(QtWidgets.QDialog):
-#            def __init__(self):
-#                QtWidgets.QDialog.__init__(self)
-#
-#                self.ui = Ui_SettingsDialog()
-#                self.ui.setupUi(self)
-#
-#                if BACKEND == 'ASCOM':
-#                    self.ui.setup_platesolve2_loc_button.pressed.connect(self.select_platesolve2dir)
-#                    self.ui.astrometrynetlocal_groupbox.setVisible(False)
-#                elif BACKEND == 'INDI':
-#                    self.ui.setup_astrometrynetlocal_loc_button.pressed.connect(self.select_astrometrynetlocaldir)
-#                    self.ui.platesolve2_groupbox.setVisible(False)
-#
-#                # FIXME YUCK when hiding group box need window
-#                # to shrink!
-#                self.layout().setSizeConstraint(QtWidgets.QLayout.SetFixedSize)
-#
-#
-##                self.ui.formLayout.invalidate()
-##                for i in range(0, 10):
-##                    QtWidgets.QApplication.processEvents()
-#
-#            def select_platesolve2dir(self):
-#                ps2_dir = self.ui.platesolve2_exec_path_lbl.text()
-#                new_ps2_dir, select_filter = QtWidgets.QFileDialog.getOpenFileName(None,
-#                                                                   'PlateSolve2.exe Location',
-#                                                                    ps2_dir,
-#                                                                    'Programs (*.exe)',
-#                                                                    None)
-#
-#                logging.info(f'select new_ps2_dir: {new_ps2_dir}')
-#
-#                if len(new_ps2_dir) < 1:
-#                    return
-#
-#                self.ui.platesolve2_exec_path_lbl.setText(new_ps2_dir)
-#
-#            def select_astrometrynetlocaldir(self):
-#                anet_dir = self.ui.astrometrynetlocal_exec_path_lbl.text()
-#                new_anet_dir, select_filter = QtWidgets.QFileDialog.getOpenFileName(None,
-#                                                                   'Astrometry.net (local) solve-field Location',
-#                                                                    anet_dir,
-#                                                                    '',
-#                                                                    None)
-#        #dlg.setOption(QtWidgets.QFileDialog.DontUseNativeDialog, True)
-#        #dlg.setFilter(QtWidgets.QDir.Executable)
-#                logging.info(f'select new_anet_dir: {new_anet_dir}')
-#
-#                if len(new_anet_dir) < 1:
-#                    return
-#
-#                self.ui.astrometrynetlocal_exec_path_lbl.setText(new_anet_dir)
-#
-#        print(self.settings)
-#
-#        dlg = EditDialog()
-#        dlg.ui.astrometry_timeout_spinbox.setValue(self.settings.astrometry_timeout)
-#        dlg.ui.astrometry_downsample_spinbox.setValue(self.settings.astrometry_downsample_factor)
-#        dlg.ui.astrometry_apikey.setPlainText(self.settings.astrometry_apikey)
-#        dlg.ui.pixelscale_spinbox.setValue(self.settings.pixel_scale_arcsecpx)
-#
-#        dlg.ui.plate_solve_camera_binning_spinbox.setValue(self.settings.camera_binning)
-#        dlg.ui.plate_solve_camera_exposure_spinbox.setValue(self.settings.camera_exposure)
-#        dlg.ui.plate_solve_precise_slew_limit_spinbox.setValue(self.settings.precise_slew_limit)
-#        if BACKEND == 'ASCOM':
-#            dlg.ui.platesolve2_waittime_spinbox.setValue(self.settings.platesolve2_wait_time)
-#            dlg.ui.platesolve2_num_regions_spinbox.setValue(self.settings.platesolve2_regions)
-#            dlg.ui.platesolve2_exec_path_lbl.setText(self.settings.platesolve2_location)
-#        elif BACKEND == 'INDI':
-#            dlg.ui.astrometrynetlocal_exec_path_lbl.setText(self.settings.astrometrynetlocal_location)
-#            dlg.ui.setup_astrometrynetlocal_downsample.setValue(self.settings.astrometrynetlocal_downsample)
-#            dlg.ui.setup_astrometrynetlocal_search_rad_deg.setValue(self.settings.astrometrynetlocal_search_rad_deg)
-#
-#        result = dlg.exec_()
-#
-#        logging.info(f'{result}')
-#        if result:
-#            self.settings.pixel_scale_arcsecpx = dlg.ui.pixelscale_spinbox.value()
-#            self.settings.astrometry_timeout = dlg.ui.astrometry_timeout_spinbox.value()
-#            self.settings.astrometry_downsample_factor = dlg.ui.astrometry_downsample_spinbox.value()
-#            self.settings.astrometry_apikey = dlg.ui.astrometry_apikey.toPlainText()
-#            self.settings.camera_binning = dlg.ui.plate_solve_camera_binning_spinbox.value()
-#            self.settings.camera_exposure = dlg.ui.plate_solve_camera_exposure_spinbox.value()
-#            self.settings.precise_slew_limit = dlg.ui.plate_solve_precise_slew_limit_spinbox.value()
-#            self.settings.write()
-#
-#            if BACKEND == 'ASCOM':
-#                self.settings.platesolve2_location = dlg.ui.platesolve2_exec_path_lbl.text()
-#                self.settings.platesolve2_regions = dlg.ui.platesolve2_num_regions_spinbox.value()
-#                self.settings.platesolve2_wait_time = dlg.ui.platesolve2_waittime_spinbox.value()
-#                self.platesolve2.set_exec_path(self.settings.platesolve2_location)
-#            elif BACKEND == 'INDI':
-#                self.settings.astrometrynetlocal_location = dlg.ui.astrometrynetlocal_exec_path_lbl.text()
-#                self.astrometrynetlocal.set_exec_path(self.settings.astrometrynetlocal_location)
-#                self.settings.astrometrynetlocal_downsample = dlg.ui.setup_astrometrynetlocal_downsample.value()
-#                self.settings.astrometrynetlocal_search_rad_deg = dlg.ui.setup_astrometrynetlocal_search_rad_deg.value()
-
 
 if __name__ == '__main__':
     logging.basicConfig(filename='pyastrometry_cli.log',
@@ -1462,7 +1377,6 @@ if __name__ == '__main__':
     LOG.addHandler(CH)
 
     logging.info(f'pyastrometry_cli starting')
-    logging.debug('HI')
     app = MyApp()
     app.run()
 
