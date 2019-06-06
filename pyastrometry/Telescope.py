@@ -19,6 +19,10 @@ else:
 
 
 class Telescope(MountClass):
+    """
+    Abstraction layer for mounts and handling J2000/JNow coordinates.
+    """
+
     def __init__(self, *args):
         super().__init__(*args)
 
@@ -33,38 +37,35 @@ class Telescope(MountClass):
 
     @staticmethod
     def precess_J2000_to_JNOW(pos_J2000):
-        """Precess J2000 coordinates to JNOW
+        """
+        Precess J2000 coordinates to JNOW
 
-        Parameters
-        ----------
-        pos_J2000 - SkyCoord
-            J2000 sky coordinate to precess
+        :param SkyCoord pos_J2000: J2000 sky coordinate to precess
 
-        Returns
-        -------
-        pos_JNOW : SkyCoord
-            JNow coordinate
+        :return: JNow coordiante.
+        :type: SkyCoord
         """
         time_now = Time(datetime.utcnow(), scale='utc')
         return pos_J2000.transform_to(FK5(equinox=Time(time_now.jd, format='jd', scale='utc')))
 
     @staticmethod
     def precess_JNOW_to_J2000(pos_JNOW):
-        """Precess J2000 coordinates to JNOW
+        """
+        Precess J2000 coordinates to JNOW
 
-        Parameters
-        ----------
-        pos_JNOW - SkyCoord
-            JNow sky coordinate to precess
+        :param SkyCoord pos_JNOW: JNow sky coordinate to precess
 
-        Returns
-        -------
-        pos_J2000 : SkyCoord
-            J2000 coordinate
+        :return: J2000 coordiante.
+        :type: SkyCoord
         """
         return pos_JNOW.transform_to(FK5(equinox='J2000'))
 
     def connect_to_telescope(self, driver):
+        """
+        Connect to mount.
+
+        :param str driver: Name of mount driver.
+        """
         if self.connected:
             logging.warning('connect_to_telescope: already connected!')
 
@@ -77,9 +78,21 @@ class Telescope(MountClass):
         return True
 
     def is_connected(self):
+        """
+        Test if mount is connected.
+
+        :return: True if connected.
+        :rtype: bool
+        """
         return self.connected
 
     def get_position_jnow(self):
+        """
+        Get RA/DEC position of mount (JNow).
+
+        :return: RA/DEC position (JNow)
+        :rtype: SkyCoord
+        """
         if not self.connected:
             return None
         time_now = Time(datetime.utcnow(), scale='utc')
@@ -88,12 +101,25 @@ class Telescope(MountClass):
         return SkyCoord(ra=ra_now*u.hour, dec=dec_now*u.degree, frame='fk5', equinox=Time(time_now.jd, format="jd", scale="utc"))
 
     def get_position_j2000(self):
+        """
+        Get RA/DEC position of mount (J2000).
+
+        :return: RA/DEC position (J2000)
+        :rtype: SkyCoord
+        """
         if not self.connected:
             return None
         pos_jnow = self.get_position_jnow()
         return self.precess_JNOW_to_J2000(pos_jnow)
 
     def sync(self, pos):
+        """
+        Sync mount to position.
+
+        :param SkyCoord pos: Sync position.
+        :return: True on success.
+        :rtype: bool
+        """
         if not self.connected:
             return False
 
@@ -107,6 +133,13 @@ class Telescope(MountClass):
         return True
 
     def goto(self, pos):
+        """
+        Slew mount to position.
+
+        :param SkyCoord pos: Slew position.
+        :return: True on success.
+        :rtype: bool
+        """
         if not self.connected:
             return False
         logging.info(f"Goto to {pos.ra.hour}  {pos.dec.degree}")

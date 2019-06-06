@@ -1,0 +1,351 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>Using pyastrometry_cli_main.py &mdash; pyastrometry 0.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script type="text/javascript" src="_static/jquery.js"></script>
+        <script type="text/javascript" src="_static/underscore.js"></script>
+        <script type="text/javascript" src="_static/doctools.js"></script>
+        <script type="text/javascript" src="_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Welcome to pyastrometry’s documentation!" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="index.html" class="icon icon-home"> pyastrometry
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Using pyastrometry_cli_main.py</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#introduction">Introduction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#invocation">Invocation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#command-details">Command Details</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#using-an-astroprofile">Using an astroprofile</a></li>
+</ul>
+</li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">pyastrometry</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="index.html">Docs</a> &raquo;</li>
+        
+      <li>Using pyastrometry_cli_main.py</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/pyastrometry_cli.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="using-pyastrometry-cli-main-py">
+<h1>Using pyastrometry_cli_main.py<a class="headerlink" href="#using-pyastrometry-cli-main-py" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
+<p>The script “pyastrometry_cli_main.py” handles taking an image and plate solveing
+it to find the current position of the mount.</p>
+</div>
+<div class="section" id="invocation">
+<h2>Invocation<a class="headerlink" href="#invocation" title="Permalink to this headline">¶</a></h2>
+<p>The invocation of autofocus_auto_star.py is:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>usage: pyastrometry_cli &lt;operation&gt; <span class="o">[</span>&lt;args&gt;<span class="o">]</span>
+
+The accepted commands are:
+   solvepos     Take an image and solve current position
+   solveimage &lt;filename&gt;    Solve position of an image file
+   sync         Take an image, solve and sync mount
+   slewsolve  &lt;ra&gt; &lt;dec&gt;  Slew to position and plate solve and slew <span class="k">until</span> within threshold
+
+Astromentry CLI
+
+positional arguments:
+  operation   Operation to perform
+
+optional arguments:
+  -h, --help  show this <span class="nb">help</span> message and <span class="nb">exit</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="command-details">
+<h2>Command Details<a class="headerlink" href="#command-details" title="Permalink to this headline">¶</a></h2>
+<dl>
+<dt>solvepos:</dt><dd><p>Takes an image with the camera and solves it.  Drivers can be specified via
+a astroprofile or command line arguments.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>usage: pyastrometry_cli solvepos <span class="o">[</span>&lt;args&gt;<span class="o">]</span>
+
+Solve Parameters
+
+optional arguments:
+  -h, --help            show this <span class="nb">help</span> message and <span class="nb">exit</span>
+  --profile PROFILE     Name of astroprofile
+  --mount               Name of mount driver
+  --camera              Name of camera driver
+  --exposure            Exposure <span class="nb">time</span>
+  --binning             Camera binning
+  --solver SOLVER       Solver to use
+  --pixelscale PIXELSCALE
+                        Pixel scale <span class="o">(</span>arcsec/pixel<span class="o">)</span>
+  --downsample DOWNSAMPLE
+                        Downsampling
+  --outfile OUTFILE     Output JSON file with solution
+  --force               Overwrite output file
+
+Valid solvers are:
+    astrometryonline
+    astrometrylocal
+    platesolve2
+</pre></div>
+</div>
+</dd>
+<dt>solveimage:</dt><dd><p>Solves an existing image.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>usage: pyastrometry_cli solveimage &lt;filename&gt; <span class="o">[</span>&lt;args&gt;<span class="o">]</span>
+
+Solve Parameters
+
+optional arguments:
+  -h, --help            show this <span class="nb">help</span> message and <span class="nb">exit</span>
+  --profile PROFILE     Name of astro profile
+  --solver SOLVER       Solver to use
+  --pixelscale PIXELSCALE
+                        Pixel scale <span class="o">(</span>arcsec/pixel<span class="o">)</span>
+  --downsample DOWNSAMPLE
+                        Downsampling
+  --outfile OUTFILE     Output JSON file with solution
+  --force               Overwrite output file
+
+Valid solvers are:
+    astrometryonline
+    astrometrylocal
+    platesolve2
+</pre></div>
+</div>
+</dd>
+<dt>sync:</dt><dd><p>Takes an image with the and solves it and syncs mount to solution.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>usage: pyastrometry_cli sync <span class="o">[</span>&lt;args&gt;<span class="o">]</span>
+
+Solve Parameters
+
+optional arguments:
+  -h, --help            show this <span class="nb">help</span> message and <span class="nb">exit</span>
+  --profile PROFILE     Name of astroprofile
+  --mount               Name of mount driver
+  --camera              Name of camera driver
+  --exposure            Exposure <span class="nb">time</span>
+  --binning             Camera binning
+  --solver SOLVER       Solver to use
+  --pixelscale PIXELSCALE
+                        Pixel scale <span class="o">(</span>arcsec/pixel<span class="o">)</span>
+  --downsample DOWNSAMPLE
+                        Downsampling
+  --outfile OUTFILE     Output JSON file with solution
+  --force               Overwrite output file
+
+Valid solvers are:
+    astrometryonline
+    astrometrylocal
+    platesolve2
+</pre></div>
+</div>
+</dd>
+<dt>slewsolve:</dt><dd><p>Given an RA/DEC position slew to that position and refine slew using plate solving.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>usage: pyastrometry_cli slewsolve &lt;ra&gt; &lt;dec&gt; <span class="o">[</span>&lt;args&gt;<span class="o">]</span>
+
+Solve Parameters
+
+optional arguments:
+  -h, --help            show this <span class="nb">help</span> message and <span class="nb">exit</span>
+  --profile PROFILE     Name of astroprofile
+  --mount               Name of mount driver
+  --camera              Name of camera driver
+  --exposure            Exposure <span class="nb">time</span>
+  --binning             Camera binning
+  --solver SOLVER       Solver to use
+  --pixelscale PIXELSCALE
+                        Pixel scale <span class="o">(</span>arcsec/pixel<span class="o">)</span>
+  --downsample DOWNSAMPLE
+                        Downsampling
+  --outfile OUTFILE     Output JSON file with solution
+  --force               Overwrite output file
+
+Valid solvers are:
+    astrometryonline
+    astrometrylocal
+    platesolve2
+</pre></div>
+</div>
+</dd>
+</dl>
+</div>
+<div class="section" id="using-an-astroprofile">
+<h2>Using an astroprofile<a class="headerlink" href="#using-an-astroprofile" title="Permalink to this headline">¶</a></h2>
+<p>If specified an astroprofile will be used to get camera and mount driver information
+as well as the pixelscale used for platesolving.</p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+      
+        <a href="index.html" class="btn btn-neutral float-left" title="Welcome to pyastrometry’s documentation!" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left"></span> Previous</a>
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2019, Michael Fulbright
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

@@ -1,0 +1,345 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>pyastrometry.PlateSolve2 &mdash; pyastrometry 0.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../_static/doctools.js"></script>
+        <script type="text/javascript" src="../../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> pyastrometry
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../pyastrometry_cli.html">Using pyastrometry_cli_main.py</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">pyastrometry</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>pyastrometry.PlateSolve2</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for pyastrometry.PlateSolve2</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">from</span> <span class="nn">astropy</span> <span class="k">import</span> <span class="n">units</span> <span class="k">as</span> <span class="n">u</span>
+<span class="kn">from</span> <span class="nn">astropy.coordinates</span> <span class="k">import</span> <span class="n">Angle</span>
+<span class="kn">from</span> <span class="nn">astropy.coordinates</span> <span class="k">import</span> <span class="n">SkyCoord</span>
+<span class="kn">from</span> <span class="nn">pyastrometry.PlateSolveSolution</span> <span class="k">import</span> <span class="n">PlateSolveSolution</span>
+
+<div class="viewcode-block" id="PlateSolve2"><a class="viewcode-back" href="../../pyastrometry.html#pyastrometry.PlateSolve2.PlateSolve2">[docs]</a><span class="k">class</span> <span class="nc">PlateSolve2</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;A wrapper of the PlateSolve2 stand alone executable which allows</span>
+<span class="sd">    plate solving of images.</span>
+
+<span class="sd">    The PlateSolve2 executable is started for every solve request.  The</span>
+<span class="sd">    method blocks until PlateSolve2 completes.  When PlateSolve2 completes</span>
+<span class="sd">    it will generate a &#39;.apm&#39; file which contains the result of the</span>
+<span class="sd">    plate solve operation.  The contains are parsed and the solution is</span>
+<span class="sd">    returned to the caller.</span>
+
+<span class="sd">    It is important that the catalog path(s) are correctly configured in</span>
+<span class="sd">    PlateSolve2 or the operation will fail.</span>
+
+<span class="sd">    :param str exec_path: Path to the astap executable.</span>
+<span class="sd">   &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exec_path</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Initialize object so it is ready to handle solve requests</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        exec_path : str</span>
+<span class="sd">            Path to the PlateSolve2 executable</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exec_path</span> <span class="o">=</span> <span class="n">exec_path</span>
+
+        <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;PlateSolve2(): set exec path to </span><span class="si">{self.exec_path}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+    <span class="c1">#def solve_file(self, fname, radec, fov_x, fov_y, nfields=99, wait=1):</span>
+
+<div class="viewcode-block" id="PlateSolve2.set_exec_path"><a class="viewcode-back" href="../../pyastrometry.html#pyastrometry.PlateSolve2.PlateSolve2.set_exec_path">[docs]</a>    <span class="k">def</span> <span class="nf">set_exec_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exec_path</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set path to &quot;solve-field&quot; executable.</span>
+
+<span class="sd">        :param str exec_path: Path to the astap executable.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exec_path</span> <span class="o">=</span> <span class="n">exec_path</span></div>
+
+<div class="viewcode-block" id="PlateSolve2.solve_file"><a class="viewcode-back" href="../../pyastrometry.html#pyastrometry.PlateSolve2.PlateSolve2.solve_file">[docs]</a>    <span class="k">def</span> <span class="nf">solve_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fname</span><span class="p">,</span> <span class="n">solve_params</span><span class="p">,</span> <span class="n">nfields</span><span class="o">=</span><span class="mi">99</span><span class="p">,</span> <span class="n">wait</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Plate solve the specified file using PlateSolve2</span>
+
+<span class="sd">        :param str fname: Filename of the file to be solved.</span>
+<span class="sd">        :param SkyCoord radec: RA/DEC of the estimated center of the image.</span>
+<span class="sd">        :param Angle fov_x: Angular width (field of view) of the image.</span>
+<span class="sd">        :param Angle fov_y: Angular height (field of view) of the image.</span>
+<span class="sd">        :param int nfields: Number of fields to search (defaults to 99).</span>
+<span class="sd">        :param int wait: Number of seconds to wait when solve is complete before</span>
+<span class="sd">            PlateSolve2 closes its window (defaults to 1 second).</span>
+<span class="sd">        :returns:</span>
+<span class="sd">          solved_position (SkyCoord)</span>
+<span class="sd">             The J2000 sky coordinate of the plate solve match, or None if no</span>
+<span class="sd">             match was found.</span>
+<span class="sd">          angle (Angle)</span>
+<span class="sd">             Position angle of Y axis expressed as East of North.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">cmd_line</span> <span class="o">=</span> <span class="n">f</span><span class="s1">&#39;</span><span class="si">{solve_params.radec.ra.radian}</span><span class="s1">,&#39;</span>
+        <span class="n">cmd_line</span> <span class="o">+=</span> <span class="n">f</span><span class="s1">&#39;</span><span class="si">{solve_params.radec.dec.radian}</span><span class="s1">,&#39;</span>
+        <span class="n">cmd_line</span> <span class="o">+=</span> <span class="n">f</span><span class="s1">&#39;</span><span class="si">{solve_params.fov_x.radian}</span><span class="s1">,&#39;</span>
+        <span class="n">cmd_line</span> <span class="o">+=</span> <span class="n">f</span><span class="s1">&#39;</span><span class="si">{solve_params.fov_y.radian}</span><span class="s1">,&#39;</span>
+        <span class="n">cmd_line</span> <span class="o">+=</span> <span class="n">f</span><span class="s1">&#39;</span><span class="si">{nfields}</span><span class="s1">,&#39;</span>
+        <span class="c1">#cmd_line += os.path.basename(fname)</span>
+        <span class="c1"># ignore wait time</span>
+
+        <span class="n">cmd_line</span> <span class="o">+=</span> <span class="n">fname</span> <span class="o">+</span> <span class="s1">&#39;,&#39;</span>
+        <span class="n">cmd_line</span> <span class="o">+=</span> <span class="n">f</span><span class="s1">&#39;</span><span class="si">{wait}</span><span class="s1">&#39;</span>
+
+        <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;platesolve2 command line = |</span><span class="si">{cmd_line}</span><span class="s1">|&#39;</span><span class="p">)</span>
+
+        <span class="c1"># unlink previous solve if any</span>
+        <span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">ext</span><span class="p">)</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">fname</span><span class="p">)</span>
+
+        <span class="c1">#print(base, ext)</span>
+
+        <span class="n">apm_fname</span> <span class="o">=</span> <span class="n">base</span> <span class="o">+</span> <span class="s1">&#39;.apm&#39;</span>
+
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">apm_fname</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="n">apm_fname</span><span class="p">)</span>
+
+        <span class="c1">#runargs = [self.exec_path, cmd_line]</span>
+        <span class="c1">#runargs = [&#39;printargs.bat&#39;, cmd_line]</span>
+        <span class="c1">#runargs = [&#39;PlateSolve2.exe&#39;, &#39;5.67,1.00,0.025,0.017,99,&#39;+fname+&#39;,1&#39;]</span>
+
+        <span class="c1">#runargs = &#39;PlateSolve2.exe &#39; + cmd_line</span>
+        <span class="n">runargs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">exec_path</span> <span class="o">+</span> <span class="s1">&#39; &#39;</span> <span class="o">+</span> <span class="n">cmd_line</span>
+
+        <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;platesolve2 runargs = |</span><span class="si">{runargs}</span><span class="s1">|&#39;</span><span class="p">)</span>
+
+        <span class="k">with</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">Popen</span><span class="p">(</span><span class="n">runargs</span><span class="p">,</span>
+                                    <span class="n">stdin</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span>
+                                    <span class="n">stdout</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span>
+                                    <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span>
+                                    <span class="n">universal_newlines</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">ps_proc</span><span class="p">:</span>
+
+            <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;ps2_proc output:&#39;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">ps_proc</span><span class="o">.</span><span class="n">stdout</span><span class="p">:</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;PS2: {l.strip()}&#39;</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;end of output&#39;</span><span class="p">)</span>
+
+<span class="c1">#        poll_value = None</span>
+<span class="c1">#        while True:</span>
+<span class="c1">#            poll_value = ps2_proc.poll()</span>
+<span class="c1">#</span>
+<span class="c1">#            if poll_value is not None:</span>
+<span class="c1">#                break</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">apm_file</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">apm_fname</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">OSError</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;Error opening apm file: </span><span class="si">{err}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+        <span class="c1"># line 1 contains RA, DEC, XYRatio(?)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">line</span> <span class="o">=</span> <span class="n">apm_file</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span>
+            <span class="n">ra_str</span><span class="p">,</span> <span class="n">dec_str</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+
+            <span class="c1"># line 2 contains the plate scale, angle, ?, ?, ?</span>
+            <span class="n">line</span> <span class="o">=</span> <span class="n">apm_file</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span>
+            <span class="n">scale_str</span><span class="p">,</span> <span class="n">angle_str</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span>
+
+            <span class="c1"># line 3 reports if the solve was valid or not</span>
+            <span class="n">line</span> <span class="o">=</span> <span class="n">apm_file</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span>
+            <span class="n">solve_OK</span> <span class="o">=</span> <span class="s1">&#39;Valid plate solution&#39;</span> <span class="ow">in</span> <span class="n">line</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;Error parsing apm file! </span><span class="si">{err}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="n">ra_str</span><span class="p">,</span> <span class="n">dec_str</span><span class="p">,</span> <span class="n">scale_str</span><span class="p">,</span> <span class="n">angle_str</span><span class="p">,</span> <span class="n">solve_OK</span><span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">solved_ra</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">ra_str</span><span class="p">)</span>
+            <span class="n">solved_dec</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">dec_str</span><span class="p">)</span>
+            <span class="n">solved_scale</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">scale_str</span><span class="p">)</span>
+            <span class="n">solved_angle</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">angle_str</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;Error converting apm string values! </span><span class="si">{err}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="n">solve_OK</span><span class="p">:</span>
+            <span class="n">radec</span> <span class="o">=</span> <span class="n">SkyCoord</span><span class="p">(</span><span class="n">ra</span><span class="o">=</span><span class="n">solved_ra</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">radian</span><span class="p">,</span> <span class="n">dec</span><span class="o">=</span><span class="n">solved_dec</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">radian</span><span class="p">,</span> <span class="n">frame</span><span class="o">=</span><span class="s1">&#39;fk5&#39;</span><span class="p">,</span> <span class="n">equinox</span><span class="o">=</span><span class="s1">&#39;J2000&#39;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">PlateSolveSolution</span><span class="p">(</span><span class="n">radec</span><span class="p">,</span> <span class="n">pixel_scale</span><span class="o">=</span><span class="n">solved_scale</span><span class="p">,</span>
+                                      <span class="n">angle</span><span class="o">=</span><span class="n">Angle</span><span class="p">(</span><span class="n">solved_angle</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">),</span> <span class="n">binning</span><span class="o">=</span><span class="n">solve_params</span><span class="o">.</span><span class="n">bin_x</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span></div></div>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2019, Michael Fulbright
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

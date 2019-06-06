@@ -18,7 +18,9 @@ class PlateSolve2:
 
     It is important that the catalog path(s) are correctly configured in
     PlateSolve2 or the operation will fail.
-    """
+
+    :param str exec_path: Path to the astap executable.
+   """
 
     def __init__(self, exec_path):
         """Initialize object so it is ready to handle solve requests
@@ -29,40 +31,35 @@ class PlateSolve2:
             Path to the PlateSolve2 executable
         """
         self.exec_path = exec_path
-        
+
         logging.debug(f'PlateSolve2(): set exec path to {self.exec_path}')
 
     #def solve_file(self, fname, radec, fov_x, fov_y, nfields=99, wait=1):
 
     def set_exec_path(self, exec_path):
+        """
+        Set path to "solve-field" executable.
+
+        :param str exec_path: Path to the astap executable.
+        """
         self.exec_path = exec_path
 
     def solve_file(self, fname, solve_params, nfields=99, wait=1):
         """ Plate solve the specified file using PlateSolve2
 
-        Parameters
-        ----------
-        fname : str
-            Filename of the file to be solved.
-        radec : SkyCoord
-            RA/DEC of the estimated center of the image `fname`.
-        fov_x : Angle
-            Angular width (field of view) of the image `fname`.
-        fov_y : Angle
-            Angular height (field of view) of the image `fname`.
-        nfields : int
-            Number of fields to search (defaults to 99).
-        wait : int
-            Number of seconds to wait when solve is complete before
+        :param str fname: Filename of the file to be solved.
+        :param SkyCoord radec: RA/DEC of the estimated center of the image.
+        :param Angle fov_x: Angular width (field of view) of the image.
+        :param Angle fov_y: Angular height (field of view) of the image.
+        :param int nfields: Number of fields to search (defaults to 99).
+        :param int wait: Number of seconds to wait when solve is complete before
             PlateSolve2 closes its window (defaults to 1 second).
-
-        Returns
-        -------
-        solved_position : SkyCoord:
-            The J2000 sky coordinate of the plate solve match, or None if no
-            match was found.
-        angle : Angle
-            Position angle of Y axis expressed as East of North.
+        :returns:
+          solved_position (SkyCoord)
+             The J2000 sky coordinate of the plate solve match, or None if no
+             match was found.
+          angle (Angle)
+             Position angle of Y axis expressed as East of North.
         """
 
         cmd_line = f'{solve_params.radec.ra.radian},'

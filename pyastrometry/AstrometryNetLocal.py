@@ -12,6 +12,8 @@ from pyastrometry.PlateSolveSolution import PlateSolveSolution
 class AstrometryNetLocal:
     """A wrapper of the astrometry.net local server  which allows
     plate solving of images.
+
+    :param str exec_path: Path to the "solve-field" executable.
     """
 
     def __init__(self, exec_path):
@@ -26,10 +28,18 @@ class AstrometryNetLocal:
         self.solve_field_revision = None
 
     def set_exec_path(self, exec_path):
+        """
+        Set path to "solve-field" executable.
+
+        :param str exec_path: Path to the astap executable.
+        """
+
         self.exec_path = exec_path
 
     def probe_solve_field_revision(self):
-
+        """
+        Runs "solve-field" executable to determine its version.
+        """
         # did we do this already
         if self.solve_field_revision is not None:
             return self.solve_field_revision
@@ -83,32 +93,21 @@ class AstrometryNetLocal:
         return rev
 
 
-    def solve_file(self, fname, solve_params, downsample=2, search_rad=10, wait=1):
-        """ Plate solve the specified file using PlateSolve2
+    def solve_file(self, fname, solve_params, downsample=2, search_rad=10):
+        """
+        Plate solve the specified file using solve-field
 
-        Parameters
-        ----------
-        fname : str
-            Filename of the file to be solved.
-        radec : SkyCoord
-            RA/DEC of the estimated center of the image `fname`.
-        fov_x : Angle
-            Angular width (field of view) of the image `fname`.
-        fov_y : Angle
-            Angular height (field of view) of the image `fname`.
-        nfields : int
-            Number of fields to search (defaults to 99).
-        wait : int
-            Number of seconds to wait when solve is complete before
-            PlateSolve2 closes its window (defaults to 1 second).
+        :param str fname: Filename of the file to be solved.
+        :param PlateSolveParameters solve_params: Parameters for plate solver.
+        :param int downsample: Downsample factor for image.
+        :param float search_rad: Number of degrees to search.
 
-        Returns
-        -------
-        solved_position : SkyCoord:
-            The J2000 sky coordinate of the plate solve match, or None if no
-            match was found.
-        angle : Angle
-            Position angle of Y axis expressed as East of North.
+        :returns:
+          solved_position (SkyCoord)
+             The J2000 sky coordinate of the plate solve match, or None if no
+             match was found.
+          angle (Angle)
+             Position angle of Y axis expressed as East of North.
         """
 
         # determine installed version of solve-field

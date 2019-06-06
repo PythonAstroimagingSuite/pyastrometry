@@ -8,41 +8,35 @@ from astropy.coordinates import Angle
 from pyastrometry.PlateSolveSolution import PlateSolveSolution
 
 class ASTAP:
-    """A wrapper of the astap local server  which allows
+    """
+    A wrapper of the astap local server  which allows
     plate solving of images.
+
+    :param str exec_path: Path to the astap executable.
     """
 
     def __init__(self, exec_path):
-        """Initialize object so it is ready to handle solve requests
+        """
+        Initialize object so it is ready to handle solve requests
 
-        Parameters
-        ----------
-        exec_path : str
-            Path to the astap executable
         """
         self.exec_path = exec_path
         self.solve_field_revision = None
 
 
     def solve_file(self, fname, solve_params, search_rad=10, wait=1):
-        """ Plate solve the specified file using PlateSolve2
+        """
+        Plate solve the specified file using PlateSolve2
 
-        Parameters
-        ----------
-        fname : str
-            Filename of the file to be solved.
-
-        wait : int
-            Number of seconds to wait when solve is complete before
-            PlateSolve2 closes its window (defaults to 1 second).
-
-        Returns
-        -------
-        solved_position : SkyCoord:
-            The J2000 sky coordinate of the plate solve match, or None if no
-            match was found.
-        angle : Angle
-            Position angle of Y axis expressed as East of North.
+        :param str fname: Filename of the file to be solved.
+        :param int wait: Number of seconds to wait when solve is complete before
+                PlateSolve2 closes its window (defaults to 1 second).
+        :returns:
+          solved_position (SkyCoord)
+             The J2000 sky coordinate of the plate solve match, or None if no
+             match was found.
+          angle (Angle)
+             Position angle of Y axis expressed as East of North.
         """
 
 # example cmdline

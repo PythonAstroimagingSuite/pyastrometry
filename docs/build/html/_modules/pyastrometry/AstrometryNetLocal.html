@@ -1,0 +1,541 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="en" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="en" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>pyastrometry.AstrometryNetLocal &mdash; pyastrometry 0.1 documentation</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="../../_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script type="text/javascript" src="../../_static/jquery.js"></script>
+        <script type="text/javascript" src="../../_static/underscore.js"></script>
+        <script type="text/javascript" src="../../_static/doctools.js"></script>
+        <script type="text/javascript" src="../../_static/language_data.js"></script>
+    
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../index.html" class="icon icon-home"> pyastrometry
+          
+
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                0.1
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../pyastrometry_cli.html">Using pyastrometry_cli_main.py</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">pyastrometry</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html">Docs</a> &raquo;</li>
+        
+          <li><a href="../index.html">Module code</a> &raquo;</li>
+        
+      <li>pyastrometry.AstrometryNetLocal</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <h1>Source code for pyastrometry.AstrometryNetLocal</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">astropy.coordinates</span> <span class="k">import</span> <span class="n">SkyCoord</span>
+<span class="kn">from</span> <span class="nn">astropy</span> <span class="k">import</span> <span class="n">units</span> <span class="k">as</span> <span class="n">u</span>
+<span class="kn">from</span> <span class="nn">astropy.coordinates</span> <span class="k">import</span> <span class="n">Angle</span>
+
+<span class="kn">from</span> <span class="nn">pyastrometry.PlateSolveSolution</span> <span class="k">import</span> <span class="n">PlateSolveSolution</span>
+
+<div class="viewcode-block" id="AstrometryNetLocal"><a class="viewcode-back" href="../../pyastrometry.html#pyastrometry.AstrometryNetLocal.AstrometryNetLocal">[docs]</a><span class="k">class</span> <span class="nc">AstrometryNetLocal</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;A wrapper of the astrometry.net local server  which allows</span>
+<span class="sd">    plate solving of images.</span>
+
+<span class="sd">    :param str exec_path: Path to the &quot;solve-field&quot; executable.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exec_path</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Initialize object so it is ready to handle solve requests</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        exec_path : str</span>
+<span class="sd">            Path to the astrometry.net executable</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">exec_path</span> <span class="o">=</span> <span class="n">exec_path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">solve_field_revision</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="AstrometryNetLocal.set_exec_path"><a class="viewcode-back" href="../../pyastrometry.html#pyastrometry.AstrometryNetLocal.AstrometryNetLocal.set_exec_path">[docs]</a>    <span class="k">def</span> <span class="nf">set_exec_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exec_path</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set path to &quot;solve-field&quot; executable.</span>
+
+<span class="sd">        :param str exec_path: Path to the astap executable.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">exec_path</span> <span class="o">=</span> <span class="n">exec_path</span></div>
+
+<div class="viewcode-block" id="AstrometryNetLocal.probe_solve_field_revision"><a class="viewcode-back" href="../../pyastrometry.html#pyastrometry.AstrometryNetLocal.AstrometryNetLocal.probe_solve_field_revision">[docs]</a>    <span class="k">def</span> <span class="nf">probe_solve_field_revision</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Runs &quot;solve-field&quot; executable to determine its version.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># did we do this already</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">solve_field_revision</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">solve_field_revision</span>
+
+        <span class="n">cmd_args</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">exec_path</span><span class="p">,</span> <span class="s1">&#39;-h&#39;</span><span class="p">]</span>
+
+        <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;probe_solve_field_revision cmd_args = </span><span class="si">{cmd_args}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="n">net_proc</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">Popen</span><span class="p">(</span><span class="n">cmd_args</span><span class="p">,</span>
+                                    <span class="n">stdin</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span>
+                                    <span class="n">stdout</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span>
+                                    <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span>
+                                    <span class="n">universal_newlines</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">poll_value</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">poll_value</span> <span class="o">=</span> <span class="n">net_proc</span><span class="o">.</span><span class="n">poll</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">poll_value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">break</span>
+
+
+<span class="c1"># output</span>
+<span class="c1">#This program is part of the Astrometry.net suite.</span>
+<span class="c1">#For details, visit http://astrometry.net.</span>
+<span class="c1">#Git URL https://github.com/dstndstn/astrometry.net</span>
+<span class="c1">#Revision 0.73, date Thu_Nov_16_08:30:44_2017_-0500.</span>
+
+        <span class="n">rev_str</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">net_proc</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">readlines</span><span class="p">():</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;{l.strip()}&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">l</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;Revision&#39;</span><span class="p">):</span>
+                <span class="n">fields</span> <span class="o">=</span> <span class="n">l</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+                <span class="n">rev_str</span> <span class="o">=</span> <span class="n">fields</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;rev str-&gt; &quot;</span><span class="si">{rev_str}</span><span class="s1">&quot;&#39;</span><span class="p">)</span>
+                <span class="k">break</span>
+
+        <span class="k">if</span> <span class="n">rev_str</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+        <span class="c1"># clean up rev_str</span>
+        <span class="n">rev_str</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">isalnum</span><span class="p">()</span> <span class="ow">or</span> <span class="n">x</span> <span class="o">==</span> <span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="n">rev_str</span><span class="p">))</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;found astrometrynet local rev_str -&gt; &quot;</span><span class="si">{rev_str}</span><span class="s1">&quot;&#39;</span><span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">rev</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">rev_str</span><span class="p">)</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="n">rev</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">solve_field_revision</span> <span class="o">=</span> <span class="n">rev</span>
+
+        <span class="k">return</span> <span class="n">rev</span></div>
+
+
+<div class="viewcode-block" id="AstrometryNetLocal.solve_file"><a class="viewcode-back" href="../../pyastrometry.html#pyastrometry.AstrometryNetLocal.AstrometryNetLocal.solve_file">[docs]</a>    <span class="k">def</span> <span class="nf">solve_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fname</span><span class="p">,</span> <span class="n">solve_params</span><span class="p">,</span> <span class="n">downsample</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">search_rad</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Plate solve the specified file using solve-field</span>
+
+<span class="sd">        :param str fname: Filename of the file to be solved.</span>
+<span class="sd">        :param PlateSolveParameters solve_params: Parameters for plate solver.</span>
+<span class="sd">        :param int downsample: Downsample factor for image.</span>
+<span class="sd">        :param float search_rad: Number of degrees to search.</span>
+
+<span class="sd">        :returns:</span>
+<span class="sd">          solved_position (SkyCoord)</span>
+<span class="sd">             The J2000 sky coordinate of the plate solve match, or None if no</span>
+<span class="sd">             match was found.</span>
+<span class="sd">          angle (Angle)</span>
+<span class="sd">             Position angle of Y axis expressed as East of North.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># determine installed version of solve-field</span>
+        <span class="n">rev</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">probe_solve_field_revision</span><span class="p">()</span>
+
+<span class="c1"># example cmdline</span>
+<span class="c1"># /usr/bin/solve-field -O --no-plots --no-verify --resort --no-fits2fits --do^Csample 2 -3 310.521 -4 45.3511 -5 10 --config /etc/astrometry.cfg -W /tmp/solution.wcs plate_solve_image.fits</span>
+
+        <span class="c1"># remove any solved files</span>
+        <span class="n">filename</span><span class="p">,</span> <span class="n">extension</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">fname</span><span class="p">)</span>
+        <span class="n">solved_filename</span> <span class="o">=</span> <span class="n">filename</span> <span class="o">+</span> <span class="s1">&#39;.solved&#39;</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;</span><span class="si">{filename}</span><span class="s1"> </span><span class="si">{extension}</span><span class="s1"> </span><span class="si">{solved_filename}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">solved_filename</span><span class="p">):</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;Removing existing solved file </span><span class="si">{solved_filename}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">solved_filename</span><span class="p">)</span>
+
+        <span class="n">cmd_line</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">exec_path</span>
+        <span class="n">cmd_line</span> <span class="o">+=</span> <span class="s1">&#39; -O --no-plots --no-verify --resort&#39;</span>
+        <span class="n">cmd_line</span> <span class="o">+=</span> <span class="n">f</span><span class="s1">&#39; --downsample </span><span class="si">{downsample}</span><span class="s1">&#39;</span>
+        <span class="c1"># this is only needed for rev of 0.67 or earlier</span>
+        <span class="k">if</span> <span class="n">rev</span> <span class="o">&lt;=</span> <span class="mf">0.67</span><span class="p">:</span>
+            <span class="n">cmd_line</span> <span class="o">+=</span> <span class="s1">&#39; --no-fits2fits&#39;</span>
+        <span class="n">cmd_line</span> <span class="o">+=</span> <span class="n">f</span><span class="s1">&#39; -3 </span><span class="si">{solve_params.radec.ra.degree}</span><span class="s1">&#39;</span>
+        <span class="n">cmd_line</span> <span class="o">+=</span> <span class="n">f</span><span class="s1">&#39; -4 </span><span class="si">{solve_params.radec.dec.degree}</span><span class="s1">&#39;</span>
+
+        <span class="c1"># give guess of pixel scale unless given as 0</span>
+        <span class="k">if</span> <span class="n">solve_params</span><span class="o">.</span><span class="n">pixel_scale</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">solve_params</span><span class="o">.</span><span class="n">pixel_scale</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">scale</span> <span class="o">=</span> <span class="n">solve_params</span><span class="o">.</span><span class="n">pixel_scale</span>
+            <span class="n">cmd_line</span> <span class="o">+=</span> <span class="n">f</span><span class="s1">&#39; -u arcsecperpix&#39;</span>
+            <span class="n">cmd_line</span> <span class="o">+=</span> <span class="n">f</span><span class="s1">&#39; -L {0.9*scale} -H {1.1*scale}&#39;</span>
+
+        <span class="c1"># search radius - default to 10 if not given</span>
+        <span class="k">if</span> <span class="n">search_rad</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">search_rad</span> <span class="o">=</span> <span class="mi">10</span>
+
+        <span class="n">cmd_line</span> <span class="o">+=</span> <span class="n">f</span><span class="s1">&#39; -5 </span><span class="si">{search_rad}</span><span class="s1">&#39;</span>
+
+        <span class="n">cmd_line</span> <span class="o">+=</span> <span class="s1">&#39; --config /etc/astrometry.cfg&#39;</span>
+        <span class="n">cmd_line</span> <span class="o">+=</span> <span class="s1">&#39; -W /tmp/solution.wcs&#39;</span>
+        <span class="n">cmd_line</span> <span class="o">+=</span> <span class="s1">&#39; --crpix-center&#39;</span>
+
+        <span class="c1"># disable most output files</span>
+        <span class="c1">#cmd_line += &#39;-N none &#39;</span>
+<span class="c1">#        cmd_line += &#39;-W none &#39;</span>
+<span class="c1">#        cmd_line += &#39;-U none &#39;</span>
+<span class="c1">#        cmd_line += &#39;--axy none &#39;</span>
+<span class="c1">#        cmd_line += &#39;-I none &#39;</span>
+<span class="c1">#        cmd_line += &#39;-M none &#39;</span>
+<span class="c1">#        cmd_line += &#39;-R none &#39;</span>
+<span class="c1">#        cmd_line += &#39;-B none &#39;</span>
+        <span class="n">cmd_line</span> <span class="o">+=</span> <span class="s1">&#39; &#39;</span> <span class="o">+</span> <span class="n">fname</span>
+
+        <span class="kn">import</span> <span class="nn">shlex</span>
+        <span class="n">cmd_args</span> <span class="o">=</span> <span class="n">shlex</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">cmd_line</span><span class="p">)</span>
+
+<span class="c1">#        cmd_line += f&#39;{solve_params.fov_x.radian},&#39;</span>
+<span class="c1">#        cmd_line += f&#39;{solve_params.fov_y.radian},&#39;</span>
+<span class="c1">#        cmd_line += fname + &#39;,&#39;</span>
+<span class="c1">#        cmd_line += f&#39;{wait}&#39;</span>
+
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;cmd_line for astrometry.net local = &quot;</span><span class="si">{cmd_line}</span><span class="s1">&quot;&#39;</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;cmd_args for astrometry.net local = &quot;</span><span class="si">{cmd_args}</span><span class="s1">&quot;&#39;</span><span class="p">)</span>
+
+<span class="c1">#/usr/bin/solve-field -O --no-plots --no-verify --resort --no-fits2fits --do^Csample 2 -3 310.521 -4 45.3511 -5 10 --config /etc/astrometry.cfg -W /tmp/solution.wcs plate_solve_image.fits</span>
+
+        <span class="k">with</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">Popen</span><span class="p">(</span><span class="n">cmd_args</span><span class="p">,</span>
+                                    <span class="n">stdin</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span>
+                                    <span class="n">stdout</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span>
+                                    <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span>
+                                    <span class="n">universal_newlines</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="k">as</span> <span class="n">net_proc</span><span class="p">:</span>
+<span class="c1">#        poll_value = None</span>
+<span class="c1">#        while True:</span>
+<span class="c1">#            poll_value = net_proc.poll()</span>
+<span class="c1">#            if poll_value is not None:</span>
+<span class="c1">#                break</span>
+
+            <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">net_proc</span><span class="o">.</span><span class="n">stdout</span><span class="p">:</span>
+                <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;astromentrynetlocal: {l.strip()}&#39;</span><span class="p">)</span>
+
+        <span class="c1"># see if solve succeeded</span>
+        <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">solved_filename</span><span class="p">):</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;Solved file found!&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;No solved file - solve failed!&#39;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+<span class="c1"># output</span>
+<span class="c1">#Field center: (RA,Dec) = (2.101258, 29.091103) deg.</span>
+<span class="c1">#Field center: (RA H:M:S, Dec D:M:S) = (00:08:24.302, +29:05:27.971).</span>
+<span class="c1">#Field size: 76.07 x 57.4871 arcminutes</span>
+<span class="c1">#Field rotation angle: up is 1.12149 degrees E of N</span>
+
+<span class="c1">#        for l in net_proc.stdout.readlines():</span>
+<span class="c1">#            ll = &#39;&#39;.join(filter(lambda x: x.isalnum() or x.isspace() or x == &#39;.&#39;, l))</span>
+<span class="c1">#            print(ll)</span>
+
+        <span class="c1"># parse solution.wcs</span>
+        <span class="kn">from</span> <span class="nn">astropy</span> <span class="k">import</span> <span class="n">wcs</span>
+        <span class="kn">import</span> <span class="nn">astropy.io.fits</span> <span class="k">as</span> <span class="nn">pyfits</span>
+
+        <span class="n">wcs_hdulist</span> <span class="o">=</span> <span class="n">pyfits</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s1">&#39;/tmp/solution.wcs&#39;</span><span class="p">)</span>
+        <span class="c1">#print(&#39;wcs_hdulist: &#39;, wcs_hdulist[0], vars(wcs_hdulist[0]))</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">wcs</span><span class="o">.</span><span class="n">WCS</span><span class="p">(</span><span class="n">wcs_hdulist</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">header</span><span class="p">)</span>
+
+        <span class="c1">#print(&#39;wcs.wcs=&#39;, wcs)</span>
+        <span class="c1">#print(&#39;vars(wcs.wcs): &#39;,vars(wcs.wcs))</span>
+        <span class="c1">#wcs.wcs.print_contents()</span>
+<span class="c1">#        print(&#39;CRPIX = &#39;, w.wcs.crpix)</span>
+<span class="c1">#        print(&#39;CD = &#39;, w.wcs.cd)</span>
+<span class="c1">#        print(&#39;pixel scales = &#39;, wcs.utils.proj_plane_pixel_scales(w))</span>
+
+        <span class="n">solved_ra</span><span class="p">,</span> <span class="n">solved_dec</span> <span class="o">=</span> <span class="n">w</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">crval</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;solved_ra solved_dec = </span><span class="si">{solved_ra}</span><span class="s1"> </span><span class="si">{solved_dec}</span><span class="s1">&#39;</span><span class="p">)</span>
+<span class="c1">#        solved_scale_x, solved_scale_y = wcs.utils.proj_plane_pixel_scales(w)</span>
+
+        <span class="c1">#FIXME just take X scale</span>
+<span class="c1">#        solved_scale = solved_scale_x</span>
+
+        <span class="c1"># convert CD matrix</span>
+        <span class="n">cd_1_1</span> <span class="o">=</span> <span class="n">w</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">cd</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">cd_1_2</span> <span class="o">=</span> <span class="n">w</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">cd</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">cd_2_1</span> <span class="o">=</span> <span class="n">w</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">cd</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">cd_2_2</span> <span class="o">=</span> <span class="n">w</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">cd</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="n">cdelt1</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">cd_1_1</span><span class="o">**</span><span class="mi">2</span><span class="o">+</span><span class="n">cd_2_1</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">cdelt2</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">cd_1_2</span><span class="o">**</span><span class="mi">2</span><span class="o">+</span><span class="n">cd_2_2</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+        <span class="c1"># convention is to set cdelt1 negative if det of CD is negative</span>
+<span class="c1">#        if cd_1_1*cd_2_2-cd_1_2*cd_2_2 &lt; 0:</span>
+<span class="c1">#            cdelt1 = -cdelt1</span>
+<span class="c1">#</span>
+<span class="c1">#        logging.info(f&#39;cdelt = {cdelt1*3600:5.2f} {cdelt2*3600:5.2f} arcsec/pixel&#39;)</span>
+<span class="c1">#</span>
+<span class="c1">#        cdel = cdelt1 - cdelt2</span>
+<span class="c1">#</span>
+<span class="c1">#        logging.debug(f&#39;cd_1_1 cd_2_1 cd_1_2 cd_2_2 = {cd_1_1} {cd_2_1} {cd_1_2} {cd_2_2})&#39;)</span>
+<span class="c1">#        logging.debug(f&#39;cdelt1 cdelt2 cdel = {cdelt1} {cdelt2} {cdel}&#39;)</span>
+
+        <span class="c1"># compute angle between North and the positive Y axis of sensor</span>
+        <span class="c1"># positive is CCW</span>
+        <span class="n">crota</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">atan2</span><span class="p">(</span><span class="n">cd_2_1</span><span class="p">,</span> <span class="n">cd_1_1</span><span class="p">)</span>
+        <span class="n">crota_deg</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">rad2deg</span><span class="p">(</span><span class="n">crota</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;cdelt = {cdelt1*3600:5.2f} {cdelt2*3600:5.2f} arcsec/pixel&#39;</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;crota/crota_deg = </span><span class="si">{crota}</span><span class="s1"> </span><span class="si">{crota_deg}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+        <span class="c1">#  get roll angle</span>
+        <span class="n">roll_angle_deg</span> <span class="o">=</span>  <span class="o">-</span><span class="n">crota_deg</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;roll_angle_deg = </span><span class="si">{roll_angle_deg:5.2f}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">solved_scale</span> <span class="o">=</span> <span class="n">cdelt1</span><span class="o">*</span><span class="mi">3600</span>
+        <span class="n">solved_angle</span> <span class="o">=</span> <span class="n">roll_angle_deg</span>
+
+<span class="c1">#        ra_str = None</span>
+<span class="c1">#        dec_str = None</span>
+<span class="c1">#        ang_str = None</span>
+<span class="c1">#        fov_x_str = None</span>
+<span class="c1">#        for l in net_proc.stdout.readlines():</span>
+<span class="c1">#            ll = &#39;&#39;.join(filter(lambda x: x.isalnum() or x.isspace() or x == &#39;.&#39;, l))</span>
+<span class="c1">#            print(ll)</span>
+<span class="c1">#            fields = ll.split()</span>
+<span class="c1">#            # look for ra/dec in deg first</span>
+<span class="c1">#            if &#39;center&#39; in ll and &#39;deg&#39; in ll:</span>
+<span class="c1">#                # should look like:</span>
+<span class="c1">#                # Field center RADec  2.101258 29.091103 deg</span>
+<span class="c1">#                print(fields)</span>
+<span class="c1">#                ra_str = fields[3]</span>
+<span class="c1">#                dec_str = fields[4]</span>
+<span class="c1">#            elif &#39;angle&#39; in ll:</span>
+<span class="c1">#                # should look like:</span>
+<span class="c1">#                # Field rotation angle up is 1.12149 degrees E of N.</span>
+<span class="c1">#                ang_str = fields[5]</span>
+<span class="c1">#            elif &#39;Field size&#39; in ll:</span>
+<span class="c1">#                fov_x_str = fields[2]</span>
+<span class="c1">#</span>
+<span class="c1">#        logging.info(f&#39;{ra_str} {dec_str} {ang_str}&#39;)</span>
+<span class="c1">#</span>
+<span class="c1">#        try:</span>
+<span class="c1">#            solved_ra = float(ra_str)</span>
+<span class="c1">#            solved_dec = float(dec_str)</span>
+<span class="c1">#            solved_angle = float(ang_str)</span>
+<span class="c1">#</span>
+<span class="c1">#            # fov is given in arcmin so convert to arcsec</span>
+<span class="c1">#            fov_x = float(fov_x_str)*60.0</span>
+<span class="c1">#</span>
+<span class="c1">#            logging.info(f&#39;solved fov = {fov_x} arcsec&#39;)</span>
+<span class="c1">#            if solve_params.width is not None:</span>
+<span class="c1">#                solved_scale = fov_x / solve_params.width</span>
+<span class="c1">#                logging.info(f&#39;using given width of {solve_params.width} pixel scale is {solved_scale} arcsec/pix&#39;)</span>
+<span class="c1">#            else:</span>
+<span class="c1">#                solved_scale = None</span>
+<span class="c1">#                logging.warning(&#39;No width given so pixel scale not computed!&#39;)</span>
+<span class="c1">#</span>
+<span class="c1">#        except Exception as e:</span>
+<span class="c1">#            logging.exception(&#39;Failed to parse solution&#39;)</span>
+<span class="c1">#            return None</span>
+<span class="c1">#</span>
+<span class="c1">#        logging.info(f&#39;{solved_ra} {solved_dec} {solved_angle} {solved_scale}&#39;)</span>
+
+        <span class="n">radec</span> <span class="o">=</span> <span class="n">SkyCoord</span><span class="p">(</span><span class="n">ra</span><span class="o">=</span><span class="n">solved_ra</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="p">,</span> <span class="n">dec</span><span class="o">=</span><span class="n">solved_dec</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="p">,</span> <span class="n">frame</span><span class="o">=</span><span class="s1">&#39;fk5&#39;</span><span class="p">,</span> <span class="n">equinox</span><span class="o">=</span><span class="s1">&#39;J2000&#39;</span><span class="p">)</span>
+
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">f</span><span class="s2">&quot;AstrometryNetLocal solved coordinates: {radec.to_string(&#39;hmsdms&#39;, sep=&#39;:&#39;)}&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">PlateSolveSolution</span><span class="p">(</span><span class="n">radec</span><span class="p">,</span> <span class="n">pixel_scale</span><span class="o">=</span><span class="n">solved_scale</span><span class="p">,</span>
+                                  <span class="n">angle</span><span class="o">=</span><span class="n">Angle</span><span class="p">(</span><span class="n">solved_angle</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="p">),</span> <span class="n">binning</span><span class="o">=</span><span class="n">solve_params</span><span class="o">.</span><span class="n">bin_x</span><span class="p">)</span></div></div>
+
+
+
+<span class="c1"># from https://groups.google.com/forum/#!topic/adass.iraf.applications/1J3W3RDacjM</span>
+
+<span class="c1">#The transformation from CDELT/CROTA2 to CD is the following.</span>
+<span class="c1">#</span>
+<span class="c1">#CD1_1 =  CDELT1 * cos (CROTA2)</span>
+<span class="c1">#CD1_2 = -CDELT2 * sin (CROTA2)</span>
+<span class="c1">#CD2_1 =  CDELT1 * sin (CROTA2)</span>
+<span class="c1">#CD2_2 =  CDELT2 * cos (CROTA2)</span>
+<span class="c1">#</span>
+<span class="c1">#Unfortunately there is no general transformation in the other direction</span>
+<span class="c1">#as the the CDELT/CROTA2 notation does not support skew and no generally</span>
+<span class="c1">#accepted way of representing skew was ever adopted in that notation.</span>
+<span class="c1">#</span>
+<span class="c1">#On the assumption that that there is in fact no skew the reverse</span>
+<span class="c1">#transformation is the following</span>
+<span class="c1">#</span>
+<span class="c1">#abs (CDELT1) = sqrt (CD1_1 ** 2 + CD2_1 ** 2)</span>
+<span class="c1">#abs (CDELT2) = sqrt (CD1_2 ** 2 + CD2_2 ** 2)</span>
+<span class="c1">#sign (CDELT1 * CDELT2) = sign (CD1_1 * CD2_2 - CD1_2 * CD2_1)</span>
+<span class="c1">#</span>
+<span class="c1">#As a matter of convention for astronomical images CDELT1 should be assigned</span>
+<span class="c1">#to be negative if the above expression, actually the determinant of the CD</span>
+<span class="c1">#matrix, is negative.</span>
+<span class="c1">#</span>
+<span class="c1">#The rotation angle is given as</span>
+<span class="c1">#</span>
+<span class="c1">#CROTA2 = arctan (-CD1_2 / CD2_2)</span>
+<span class="c1">#</span>
+<span class="c1">#or</span>
+<span class="c1">#</span>
+<span class="c1">#CROTA2 = arctan ( CD2_1 / CD1_1)</span>
+<span class="c1">#</span>
+<span class="c1">#If there is no skew the two expressions for rotation should be the same.</span>
+<span class="c1">#If they aren&#39;t and the skew is small you can take an average.</span>
+</pre></div>
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2019, Michael Fulbright
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
