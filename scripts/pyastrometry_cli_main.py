@@ -51,14 +51,14 @@ if BACKEND == 'ASCOM':
 elif BACKEND == 'INDI':
     from pyastrobackend.INDIBackend import DeviceBackend as Backend
 else:
-    raise Exception(f'Unknown backend {BACKEND} - choose ASCOM or INDI in BackendConfig.py')
+    raise Exception(f'Unknown backend {BACKEND}')
 
 if BACKEND == 'ASCOM':
     from pyastrobackend.MaximDL.Camera import Camera as MaximDL_Camera
 elif BACKEND == 'INDI':
     from pyastrobackend.INDIBackend import Camera as INDI_Camera
 else:
-    raise Exception(f'Unknown backend {BACKEND} - choose ASCOM or INDI in BackendConfig.py')
+    raise Exception(f'Unknown backend {BACKEND}')
 
 from pyastrometry.Telescope import Telescope
 
