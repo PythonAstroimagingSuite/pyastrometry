@@ -962,6 +962,9 @@ Valid solvers are:
             logging.error('target_precise_goto(): target_j2000 is None!')
             sys.exit(1)
 
+        logging.info('Slewing to target initially!')
+        self.target_goto()
+
         ntries = 0
         while ntries < self.settings.precise_slew_tries:
             logging.info('Precise slew - solving current position')
