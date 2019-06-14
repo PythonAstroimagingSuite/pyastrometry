@@ -829,7 +829,7 @@ Valid solvers are:
 
         outfile = self.parse_solve_params()
         logging.info(f'Using solver {self.solver}')
-        needdevs = operation in ['solvepos', 'syncpos', 'slewsolve']
+        needdevs = operation in ['solvepos', 'syncpos', 'slewsolve', 'getpos', 'slew']
         if needdevs:
             self.parse_devices()
             logging.info(f'camera/mount = {self.camera_driver} {self.mount_driver}')
@@ -841,12 +841,13 @@ Valid solvers are:
             else:
                 logging.info(f'{self.mount_driver} connected')
 
-            rc = self.connect_camera()
-            if not rc:
-                logging.error(f'Could not connect to camera {self.camera_driver}!')
-                sys.exit(1)
-            else:
-                logging.info(f'{self.camera_driver} connected')
+            if operation not in ['getpos', 'slew']:
+                rc = self.connect_camera()
+                if not rc:
+                    logging.error(f'Could not connect to camera {self.camera_driver}!')
+                    sys.exit(1)
+                else:
+                    logging.info(f'{self.camera_driver} connected')
 
         if operation == 'solvepos' or operation == 'syncpos':
             logging.debug(f'operation {operation}')
@@ -880,10 +881,30 @@ Valid solvers are:
                 s = self.json_print_plate_solution(self.solved_j2000)
                 sys.stdout.write(s + '\n')
         elif operation == 'slewsolve':
+            logging.debug('operation slewsolve')
             self.target_j2000 = None
             self.parse_sync()
             self.parse_slew()
             self.target_precise_goto()
+        elif operation == 'getpos':
+            logging.debug('operation getpos')
+            pos = self.tel.get_position_j2000()
+            sys.stdout.write('Position read from mount:\n')
+            s =  json.dumps({
+                'ra2000' : pos.ra.to_string(u.hour, sep=":", pad=True),
+                'dec2000' : pos.dec.to_string(alwayssign=True, sep=":", pad=True),
+                })
+            sys.stdout.write(s + '\n')
+
+            if outfile is not None:
+                logging.info(f'Writing solution to file {outfile}')
+                f = open(outfile, 'w')
+                f.write(s + '\n')
+                f.close()        
+        elif operation == 'slew':
+            logging.debug('operation slew')
+            self.parse_slew()
+            self.target_goto()
         else:
             logging.error(f'Unknown operation {operation}!')
             sys.exit(1)
