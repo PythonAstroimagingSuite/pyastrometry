@@ -9,6 +9,7 @@
 *.ini
 *.axy
 *.wcs
+*.apm
 _templates
 _static
 _build
