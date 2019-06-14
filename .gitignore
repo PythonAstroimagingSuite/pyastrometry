@@ -3,7 +3,12 @@
 *__pycache**
 *.fit
 *.fits
+*.fits-save
 *.py[cod]
+*.json
+*.ini
+*.axy
+*.wcs
 _templates
 _static
 _build
