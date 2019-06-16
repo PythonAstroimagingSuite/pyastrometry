@@ -900,7 +900,7 @@ Valid solvers are:
                 logging.info(f'Writing solution to file {outfile}')
                 f = open(outfile, 'w')
                 f.write(s + '\n')
-                f.close()        
+                f.close()
         elif operation == 'slew':
             logging.debug('operation slew')
             self.parse_slew()
