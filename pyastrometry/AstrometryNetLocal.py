@@ -81,7 +81,7 @@ class AstrometryNetLocal:
 
         # clean up rev_str
         rev_str = ''.join(filter(lambda x: x.isalnum() or x == '.', rev_str))
-        logging.info(f'found astrometrynet local rev_str -> "{rev_str}"')
+        logging.debug(f'found astrometrynet local rev_str -> "{rev_str}"')
 
         try:
             rev = float(rev_str)
@@ -119,9 +119,9 @@ class AstrometryNetLocal:
         # remove any solved files
         filename, extension = os.path.splitext(fname)
         solved_filename = filename + '.solved'
-        logging.info(f'{filename} {extension} {solved_filename}')
+        logging.debug(f'{filename} {extension} {solved_filename}')
         if os.path.isfile(solved_filename):
-            logging.info(f'Removing existing solved file {solved_filename}')
+            logging.debug(f'Removing existing solved file {solved_filename}')
             os.remove(solved_filename)
 
         cmd_line = self.exec_path
@@ -168,8 +168,8 @@ class AstrometryNetLocal:
 #        cmd_line += fname + ','
 #        cmd_line += f'{wait}'
 
-        logging.info(f'cmd_line for astrometry.net local = "{cmd_line}"')
-        logging.info(f'cmd_args for astrometry.net local = "{cmd_args}"')
+        logging.debug(f'cmd_line for astrometry.net local = "{cmd_line}"')
+        logging.debug(f'cmd_args for astrometry.net local = "{cmd_args}"')
 
 #/usr/bin/solve-field -O --no-plots --no-verify --resort --no-fits2fits --do^Csample 2 -3 310.521 -4 45.3511 -5 10 --config /etc/astrometry.cfg -W /tmp/solution.wcs plate_solve_image.fits
 
@@ -191,7 +191,7 @@ class AstrometryNetLocal:
         if os.path.isfile(solved_filename):
             logging.info('Solved file found!')
         else:
-            logging.info('No solved file - solve failed!')
+            logging.error('No solved file - solve failed!')
             return None
 
 # output
@@ -250,7 +250,7 @@ class AstrometryNetLocal:
         # positive is CCW
         crota = math.atan2(cd_2_1, cd_1_1)
         crota_deg = np.rad2deg(crota)
-        logging.info(f'cdelt = {cdelt1*3600:5.2f} {cdelt2*3600:5.2f} arcsec/pixel')
+        logging.debug(f'cdelt = {cdelt1*3600:5.2f} {cdelt2*3600:5.2f} arcsec/pixel')
         logging.debug(f'crota/crota_deg = {crota} {crota_deg}')
 
         #  get roll angle

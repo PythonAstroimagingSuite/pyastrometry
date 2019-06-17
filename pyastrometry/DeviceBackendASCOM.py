@@ -35,7 +35,7 @@ class MaximDLCamera:
 #        logging.info(f"connectCamera name = {name}")
         # setup Maxim/CCD
 
-        logging.info("connectCamera main thread")
+        logging.debug("connectCamera main thread")
 #        import pythoncom
 #        logging.info("connectCamera - calling CoInitialize()")
 #        pythoncom.CoInitialize()
@@ -48,7 +48,7 @@ class MaximDLCamera:
     # FIXME ignores filename passed to RPC server -
     # probably ought to put saveImage here and use filename?
     def takeframeCamera(self, expos):
-        logging.info(f'Exposing image for {expos} seconds')
+        logging.debug(f'Exposing image for {expos} seconds')
 
         self.cam.Expose(expos, 1, -1)
 
@@ -67,13 +67,13 @@ class MaximDLCamera:
     def saveimageCamera(self, path):
         # FIXME make better temp name
         # FIXME specify cwd as path for file - otherwise not sure where it goes!
-        logging.info(f"saveimageCamera: saving to {path}")
+        logging.debug(f"saveimageCamera: saving to {path}")
 
         try:
             self.cam.SaveImage(path)
         except:
             exc_type, exc_value = sys.exc_info()[:2]
-            logging.info('saveimageCamera %s exception with message "%s" in %s' % \
+            logging.error('saveimageCamera %s exception with message "%s" in %s' % \
                               (exc_type.__name__, exc_value, current_thread().name))
             logging.error(f"Error saving {path} in saveimageCamera()!")
             return False
@@ -135,7 +135,7 @@ class RPCCamera:
         self.frame_height = None
 
     def connectCamera(self):
-        logging.info(f'connectCamera: Connecting to RPCServer 127.0.0.1:{self.port}')
+        logging.debug(f'connectCamera: Connecting to RPCServer 127.0.0.1:{self.port}')
 
         # FIXME Does this leak sockets?  Need to investigate why
         # setting self.socket = None causes SEGV when disconnected
@@ -143,7 +143,7 @@ class RPCCamera:
         self.socket = QtNetwork.QTcpSocket()
         self.socket.connectToHost('127.0.0.1', self.port)
 
-        logging.info('waiting')
+        logging.debug('waiting')
 
         # should be quick so we connect synchronously
         if not self.socket.waitForConnected(5000):
@@ -164,7 +164,7 @@ class RPCCamera:
             logging.error('server not connected!')
             return False
 
-        logging.info(f'process(): {self.socket}')
+        logging.debug(f'process(): {self.socket}')
 
         while True:
             resp = self.socket.readLine(2048)
@@ -172,7 +172,7 @@ class RPCCamera:
             if len(resp) < 1:
                 break
 
-            logging.info(f'server sent {resp}')
+            logging.debug(f'server sent {resp}')
 
             try:
                 j = json.loads(resp)
@@ -182,7 +182,7 @@ class RPCCamera:
                 logging.error('Exception ->', exc_info=True)
                 continue
 
-            logging.info(f'json = {j}')
+            logging.debug(f'json = {j}')
 
             if 'Event' in j:
                 if j['Event'] == 'Connection':
@@ -192,13 +192,13 @@ class RPCCamera:
                         servid = j['Server']
                     if 'Version' in j:
                         vers = j['Version']
-                    logging.info(f'Server ack on connection: Server={servid} Version={vers}')
+                    logging.debug(f'Server ack on connection: Server={servid} Version={vers}')
                 elif j['Event'] == 'Ping':
-                    logging.info('Server ping received')
+                    logging.debug('Server ping received')
             elif 'jsonrpc' in j:
                 reqid = j['id']
                 result = j['result']
-                logging.info(f'result of request {reqid} was {result} {type(result)}')
+                logging.debug(f'result of request {reqid} was {result} {type(result)}')
                 if reqid == self.outstanding_reqid:
                     self.outstanding_complete = True
                     self.outstanding_result = result
@@ -222,7 +222,7 @@ class RPCCamera:
         self.json_id += 1
 
         cmdstr = json.dumps(cmd) + '\n'
-        logging.info(f'__send_json_message->{bytes(cmdstr, encoding="ascii")}')
+        logging.debug(f'__send_json_message->{bytes(cmdstr, encoding="ascii")}')
 
         try:
             self.socket.writeData(bytes(cmdstr, encoding='ascii'))
@@ -237,7 +237,7 @@ class RPCCamera:
     # frame and then call saveimageCamera() to save it!
     # Here we set exposure time and filename at start!
     def takeframeCamera(self, expos):
-        logging.info(f'Exposing image for {expos} seconds')
+        logging.debug(f'Exposing image for {expos} seconds')
 
         paramdict = {}
         paramdict['exposure'] = expos
@@ -258,7 +258,7 @@ class RPCCamera:
         return True
 
     def saveimageCamera(self, path):
-        logging.info(f'RPC:Saving image to {path}')
+        logging.debug(f'RPC:Saving image to {path}')
 
         paramdict = {}
 
@@ -286,7 +286,7 @@ class RPCCamera:
 
         resp = self.outstanding_result
 
-        logging.info(f'RPC saveimageCamera resp = {resp}')
+        logging.debug(f'RPC saveimageCamera resp = {resp}')
 
         #FIXME need to look at result code
         return True
@@ -343,7 +343,7 @@ class RPCCamera:
 
         resp = self.outstanding_result
 
-        logging.info(f'RPC get_camera_setting resp = {resp}')
+        logging.debug(f'RPC get_camera_setting resp = {resp}')
 
         if 'framesize' in resp:
             w, h = resp['framesize']
@@ -393,7 +393,7 @@ class DeviceBackendASCOM(DeviceBackend):
             return self.connected
 
         def connect(self, name):
-            logging.info(f"connectCamera name = {name}")
+            logging.debug(f"connectCamera name = {name}")
             # setup Maxim/CCD
 
             if name == 'MaximDL':
@@ -410,7 +410,7 @@ class DeviceBackendASCOM(DeviceBackend):
             return True
 
         def takeframeCamera(self, expos):
-            logging.info(f'Exposing image for {expos} seconds')
+            logging.debug(f'Exposing image for {expos} seconds')
 
             self.driver.takeframeCamera(expos)
 
@@ -452,22 +452,22 @@ class DeviceBackendASCOM(DeviceBackend):
 #            import pythoncom
 #            logging.info("connectFocuser - calling CoInitialize()")
 #            pythoncom.CoInitialize()
-            logging.info(f'focuser = {name}')
+            logging.debug(f'focuser = {name}')
             self.focus = win32com.client.Dispatch(name)
-            logging.info(f"self.focus = {self.focus}")
+            logging.debug(f"self.focus = {self.focus}")
             if self.focus.Connected:
-                logging.info('	-> Focuser was already connected')
+                logging.debug('	-> Focuser was already connected')
             else:
                 self.focus.Connected = True
 
             if self.focus.Connected:
-                logging.info(f'	Connected to focuser {name} now')
+                logging.debug(f'	Connected to focuser {name} now')
             else:
-                logging.info('	Unable to connect to focuser, expect exception')
+                logging.error('	Unable to connect to focuser, expect exception')
 
             # check focuser works in absolute position
             if not self.focus.Absolute:
-                logging.info('ERROR - focuser does not use absolute position!')
+                logging.error('ERROR - focuser does not use absolute position!')
 
             return True
 
@@ -527,22 +527,22 @@ class DeviceBackendASCOM(DeviceBackend):
             chooser = win32com.client.Dispatch("ASCOM.Utilities.Chooser")
             chooser.DeviceType="Telescope"
             mount = chooser.Choose(last_choice)
-            logging.info(f'choice = {mount}')
+            logging.debug(f'choice = {mount}')
             return mount
 
         def connect_to_telescope(self, driver):
             if self.connected:
                 logging.warning('connect_to_telescope: already connected!')
 
-            logging.info(f"Connect to telescope driver {driver}")
+            logging.debug(f"Connect to telescope driver {driver}")
             self.tel = win32com.client.Dispatch(driver)
 
             if self.tel.Connected:
-                logging.info("	->Telescope was already connected")
+                logging.debug("	->Telescope was already connected")
             else:
                 self.tel.Connected = True
                 if self.tel.Connected:
-                    logging.info("	Connected to telescope now")
+                    logging.debug("	Connected to telescope now")
                 else:
                     logging.error("	Unable to connect to telescope, expect exception")
                     return False

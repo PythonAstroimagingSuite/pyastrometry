@@ -69,7 +69,7 @@ class Telescope(MountClass):
         if self.connected:
             logging.warning('connect_to_telescope: already connected!')
 
-        logging.info(f"Connect to telescope driver {driver}")
+        logging.debug(f"Connect to telescope driver {driver}")
 
         if not super().connect(driver):
             return False
@@ -123,7 +123,8 @@ class Telescope(MountClass):
         if not self.connected:
             return False
 
-        logging.info(f"Syncing to {pos.ra.hour}  {pos.dec.degree}")
+        logging.info(f'Syncing to {pos.ra.to_string(unit=u.hour, sep=":")} ' + \
+                     f'{pos.dec.to_string(unit=u.degree, sep=":")}')
         try:
            super().sync(pos.ra.hour, pos.dec.degree)
         except Exception as e:
@@ -142,6 +143,7 @@ class Telescope(MountClass):
         """
         if not self.connected:
             return False
-        logging.info(f"Goto to {pos.ra.hour}  {pos.dec.degree}")
+        logging.info(f'Goto {pos.ra.to_string(unit=u.hour, sep=":")} ' + \
+                     f'{pos.dec.to_string(unit=u.degree, sep=":")}')
         super().slew(pos.ra.hour, pos.dec.degree)
         return True

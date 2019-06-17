@@ -121,7 +121,7 @@ class Client(object):
             m1.add_header('Content-disposition',
                           'form-data; name="request-json"')
 
-            logging.info(f"send_request: {json}")  # MSF
+            logging.debug(f"send_request: {json}")  # MSF
 
             m1.set_payload(json)
             m2 = MIMEApplication(file_args[1], 'octet-stream', encode_noop)
@@ -184,16 +184,16 @@ class Client(object):
                 raise RequestError('server error message: ' + errstr)
             return result
         except HTTPError as e:
-            print('HTTPError', e)
+            logging.error(f'HTTPError {e}')
             txt = e.read()
             open('err.html', 'wb').write(txt)
-            print('Wrote error text to err.html')
+            logging.error('Wrote error text to err.html')
 
     def login(self, apikey):
         args = {'apikey' : apikey}
         result = self.send_request('login', args)
         sess = result.get('session')
-        print('Got session:', sess)
+        logging.info(f'Got session: {sess}')
         if not sess:
             raise RequestError('no session in result')
         self.session = sess
@@ -243,7 +243,7 @@ class Client(object):
                 f = open(fn, 'rb')
                 file_args = (fn, f.read())
             except IOError:
-                print('File %s does not exist' % fn)
+                logging.error('File %s does not exist' % fn)
                 raise
         return self.send_request('upload', args, file_args)
 
@@ -278,7 +278,7 @@ class Client(object):
 
     def job_calib_result(self, job_id):
         result = self.send_request('jobs/%s/calibration' % job_id)
-        print('Calibration:', result)
+        #print('Calibration:', result)
 
         return result
 
@@ -323,7 +323,7 @@ def read_radec_from_FITS(fname):
     except:
         return None
 
-    logging.info(f"read_radec_from_FITS: {obj_ra_str} {obj_dec_str}")
+    logging.debug(f"read_radec_from_FITS: {obj_ra_str} {obj_dec_str}")
 
     try:
         radec = SkyCoord(obj_ra_str + ' ' + obj_dec_str, frame='fk5', unit=(u.hourangle, u.deg), equinox='J2000')
@@ -374,7 +374,7 @@ def read_image_info_from_FITS(fname):
             logging.error(f"read_image_info_from_FITS: error reading key {k} from file {fname}")
             return None
 
-    logging.info(f"read_image_info_from_FITS: {retval}")
+    logging.debug(f"read_image_info_from_FITS: {retval}")
 
     return retval
 
@@ -566,10 +566,10 @@ class ProgramSettings:
                               f' already exists and is not a directory!')
                 return False
             else:
-                logging.info(f'write settings: creating config dir {self._get_config_dir()}')
+                logging.debug(f'write settings: creating config dir {self._get_config_dir()}')
                 os.mkdir(self._get_config_dir())
 
-        logging.info(f'{self._config.filename}')
+        logging.debug(f'{self._config.filename}')
         self._config.write()
 
     def read(self):
@@ -587,7 +587,6 @@ class ProgramSettings:
 
         self._config.merge(config)
 
-        print(self._config)
         return True
 
 class MyApp:
@@ -597,7 +596,7 @@ class MyApp:
         self.settings = ProgramSettings()
         self.settings.read()
 
-        logging.info(f'startup settings: {self.settings}')
+        logging.debug(f'startup settings: {self.settings}')
 
         # FIXME This is an ugly section of code
         self.backend = Backend()
@@ -673,7 +672,7 @@ The accepted commands are:
         args, unknown = parser.parse_known_args(sys.argv)
 
         if args.profile is not None:
-            logging.info(f'Using astro profile {args.profile}')
+            logging.info(f'Setting up devicec using astro profile {args.profile}')
             ap = AstroProfile()
             ap.read(args.profile)
             #equip_profile = EquipmentProfile('astroprofiles/equipment', args.profile)
@@ -703,8 +702,8 @@ The accepted commands are:
             logging.debug(f'Set camera binning to {args.binning}')
             self.camera_binning = args.binning
 
-        logging.info(f'Using camera_drver = {self.camera_driver}')
-        logging.info(f'Using mount_driver = {self.mount_driver}')
+        logging.debug(f'Using camera_drver = {self.camera_driver}')
+        logging.debug(f'Using mount_driver = {self.mount_driver}')
 #        logging.info(f'Using camera_exposure = {self.camera_exposure}')
 #        logging.info(f'Using camera_binning = {self.camera_binning}')
 
@@ -738,7 +737,7 @@ Valid solvers are:
         # FIXME This is duplicate from parse_devices() need to unify
         self.pixel_scale_arcsecpx = None
         if args.profile is not None:
-            logging.info(f'Using astro profile {args.profile}')
+            logging.debug(f'Setting up plate solve using astro profile {args.profile}')
             ap = AstroProfile()
             ap.read(args.profile)
             #equip_profile = EquipmentProfile('astroprofiles/equipment', args.profile)
@@ -783,15 +782,14 @@ Valid solvers are:
         parser.add_argument('--syncforce', action='store_true', help='Force sync no matter deviation')
         args, unknown = parser.parse_known_args(sys.argv)
         if args.syncforce:
-            logging.info('Will force sync no matter how large the separation')
+            logging.warning('Will force sync no matter how large the separation')
             self.settings.max_allow_sep = 999
         elif args.syncmaxsep is not None:
-            logging.info(f'Setting max_all_sep to {args.syncmaxsep}')
+            logging.debug(f'Setting max_all_sep to {args.syncmaxsep}')
             self.settings.max_allow_sep = args.syncmaxsep
 
     def parse_slew(self):
         logging.debug('parse_slew')
-        print(sys.argv)
         parser = argparse.ArgumentParser()
         parser.add_argument('ra', type=str, help='Target RA (J2000)')
         parser.add_argument('dec', type=str, help='Target DEC (J2000)')
@@ -804,7 +802,7 @@ Valid solvers are:
 
         target_str = args.ra + " "
         target_str += args.dec
-        logging.info(f"target_str = {target_str}")
+        logging.debug(f"target_str = {target_str}")
 
         try:
             target = SkyCoord(target_str, unit=(u.hourangle, u.deg), frame='fk5', equinox='J2000')
@@ -812,34 +810,34 @@ Valid solvers are:
             logging.error("Cannot GOTO invalid target POSITION!")
             sys.exit(1)
 
-        logging.info(f'Settings target_j2000 to {target}')
+        logging.debug(f'Settings target_j2000 to {target}')
         self.target_j2000 = target
 
         if args.slewthreshold is not None:
-            logging.info(f'Setting slew threshold to {args.slewthreshold}')
+            logging.debug(f'Setting slew threshold to {args.slewthreshold}')
             self.settings.precise_slew_limit = args.slewthreshold
 
         if args.slewtries is not None:
-            logging.info(f'Setting # of slew tries to {args.slewtries}')
+            logging.debug(f'Setting # of slew tries to {args.slewtries}')
             self.settings.precise_slew_tries = args.slewtries
 
     def run(self):
         operation = self.parse_operation()
-        logging.info(f'operation = {operation}')
+        logging.debug(f'operation = {operation}')
 
         outfile = self.parse_solve_params()
-        logging.info(f'Using solver {self.solver}')
+        logging.debug(f'Using solver {self.solver}')
         needdevs = operation in ['solvepos', 'syncpos', 'slewsolve', 'getpos', 'slew']
         if needdevs:
             self.parse_devices()
-            logging.info(f'camera/mount = {self.camera_driver} {self.mount_driver}')
+            logging.debug(f'camera/mount = {self.camera_driver} {self.mount_driver}')
 
             rc = self.connect_mount()
             if not rc:
                 logging.error(f'Could not connec to mount {self.mount_driver}!')
                 sys.exit(1)
             else:
-                logging.info(f'{self.mount_driver} connected')
+                logging.debug(f'{self.mount_driver} connected')
 
             if operation not in ['getpos', 'slew']:
                 rc = self.connect_camera()
@@ -847,15 +845,15 @@ Valid solvers are:
                     logging.error(f'Could not connect to camera {self.camera_driver}!')
                     sys.exit(1)
                 else:
-                    logging.info(f'{self.camera_driver} connected')
+                    logging.debug(f'{self.camera_driver} connected')
 
         if operation == 'solvepos' or operation == 'syncpos':
             logging.debug(f'operation {operation}')
             self.run_solve_image()
             if self.solved_j2000 is not None:
-                sys.stdout.write('Plate solve suceeded\n')
+                logging.info('Plate solve suceeded')
                 s = self.json_print_plate_solution(self.solved_j2000)
-                sys.stdout.write(s + '\n')
+                logging.info(f'{s}')
 
                 if outfile is not None:
                     logging.info(f'Writing solution to file {outfile}')
@@ -877,9 +875,9 @@ Valid solvers are:
                 sys.exit(1)
             self.run_solve_file(fname)
             if self.solved_j2000 is not None:
-                sys.stdout.write('Plate solve suceeded\n')
+                logging.info('Plate solve suceeded')
                 s = self.json_print_plate_solution(self.solved_j2000)
-                sys.stdout.write(s + '\n')
+                logging.info(f'{s}')
         elif operation == 'slewsolve':
             logging.debug('operation slewsolve')
             self.target_j2000 = None
@@ -889,12 +887,18 @@ Valid solvers are:
         elif operation == 'getpos':
             logging.debug('operation getpos')
             pos = self.tel.get_position_j2000()
-            sys.stdout.write('Position read from mount:\n')
+            # sys.stdout.write('Position read from mount:\n')
+            # s =  json.dumps({
+                # 'ra2000' : pos.ra.to_string(u.hour, sep=":", pad=True),
+                # 'dec2000' : pos.dec.to_string(alwayssign=True, sep=":", pad=True),
+                # })
+            # sys.stdout.write(s + '\n')
+            logging.info('Position read from mount:')
             s =  json.dumps({
-                'ra2000' : pos.ra.to_string(u.hour, sep=":", pad=True),
-                'dec2000' : pos.dec.to_string(alwayssign=True, sep=":", pad=True),
-                })
-            sys.stdout.write(s + '\n')
+                             'ra2000' : pos.ra.to_string(u.hour, sep=":", pad=True),
+                             'dec2000' : pos.dec.to_string(alwayssign=True, sep=":", pad=True),
+                           })
+            logging.info(f'{s}')
 
             if outfile is not None:
                 logging.info(f'Writing solution to file {outfile}')
@@ -927,7 +931,7 @@ Valid solvers are:
             driver = 'INDICamera'
             self.cam = INDI_Camera(self.backend)
 
-        logging.info(f'connect_camera: driver = {driver}')
+        logging.debug(f'connect_camera: driver = {driver}')
 
         if driver == 'INDICamera':
             rc = self.cam.connect(self.camera_driver)
@@ -1027,7 +1031,7 @@ Valid solvers are:
         self.solved_j2000 = self.plate_solve_file(fname)
 
     def run_solve_image(self):
-        logging.info("Taking image")
+        logging.debug("Taking image")
 
         if not self.setup_ccd_frame_binning():
             logging.error('run_solve_image: Unable to setup camera!')
@@ -1040,7 +1044,7 @@ Valid solvers are:
         self.cam.set_binning(1, 1)
         width, height = self.cam.get_size()
         self.cam.set_frame(0, 0, width, height)
-        logging.info(f'setting binning to {self.settings.camera_binning}')
+        logging.debug(f'setting binning to {self.settings.camera_binning}')
         self.cam.set_binning(self.settings.camera_binning, self.settings.camera_binning)
         self.cam.start_exposure(focus_expos)
 
@@ -1057,7 +1061,7 @@ Valid solvers are:
         # give it some time seems like Maxim isnt ready if we hit it too fast
         time.sleep(0.5)
 
-        logging.info(f"Saving image to {ff}")
+        logging.debug(f"Saving image to {ff}")
         if BACKEND == 'INDI':
             # FIXME need better way to handle saving image to file!
             image_data = self.cam.get_image_data()
@@ -1077,7 +1081,7 @@ Valid solvers are:
             return False
 
         (maxx, maxy) = result
-        logging.info("Sensor size is %d x %d", maxx, maxy)
+        logging.debug("Sensor size is %d x %d", maxx, maxy)
 
         width = maxx
         height = maxy
@@ -1086,8 +1090,8 @@ Valid solvers are:
 
         self.cam.set_binning(self.settings.camera_binning, self.settings.camera_binning)
 
-        logging.info("CCD size: %d x %d ", width, height)
-        logging.info("CCD bin : %d x %d ", self.settings.camera_binning, self.settings.camera_binning)
+        logging.debug("CCD size: %d x %d ", width, height)
+        logging.debug("CCD bin : %d x %d ", self.settings.camera_binning, self.settings.camera_binning)
 
         return True
 
@@ -1121,7 +1125,7 @@ Valid solvers are:
         radec_pos = read_radec_from_FITS(fname)
         img_info = read_image_info_from_FITS(fname)
 
-        logging.info(f'{img_info}')
+        logging.debug(f'{img_info}')
 
         if radec_pos is None or img_info is None:
             logging.error(f'plate_solve_file_platesolve2: error reading radec from FITS file {radec_pos} {img_info}')
@@ -1143,7 +1147,7 @@ Valid solvers are:
         solve_params.bin_x = img_binx
         solve_params.bin_y = img_biny
 
-        logging.info(f'plate_solve_file_platesolve2: solve_parms = {solve_params}')
+        logging.debug(f'plate_solve_file_platesolve2: solve_parms = {solve_params}')
 
         solved_j2000 = self.platesolve2.solve_file(fname, solve_params,
                                                    nfields=self.settings.platesolve2_regions)
@@ -1161,7 +1165,7 @@ Valid solvers are:
         radec_pos = read_radec_from_FITS(fname)
         img_info = read_image_info_from_FITS(fname)
 
-        logging.info(f'{img_info}')
+        logging.debug(f'{img_info}')
 
         if radec_pos is None or img_info is None:
             logging.error(f'plate_solve_file_AASTAP: error reading radec from FITS file {radec_pos} {img_info}')
@@ -1183,7 +1187,7 @@ Valid solvers are:
         solve_params.bin_x = img_binx
         solve_params.bin_y = img_biny
 
-        logging.info(f'plate_solve_file_ASTAP: solve_parms = {solve_params}')
+        logging.debug(f'plate_solve_file_ASTAP: solve_parms = {solve_params}')
 
         solved_j2000 = self.ASTAP.solve_file(fname, solve_params,
                                                    )
@@ -1200,7 +1204,7 @@ Valid solvers are:
         radec_pos = read_radec_from_FITS(fname)
         img_info = read_image_info_from_FITS(fname)
 
-        logging.info(f'{img_info}')
+        logging.debug(f'{img_info}')
 
         if radec_pos is None or img_info is None:
             logging.error(f'plate_solve_file_astromentrynetlocal: error reading radec from FITS file {radec_pos} {img_info}')
@@ -1225,7 +1229,7 @@ Valid solvers are:
 
         down_val = self.settings.astrometrynetlocal_downsample
 
-        logging.info(f'plate_solve_file_astromentrynetlocal: solve_parms = {solve_params}')
+        logging.debug(f'plate_solve_file_astromentrynetlocal: solve_parms = {solve_params}')
 
         solved_j2000 = self.astrometrynetlocal.solve_file(fname, solve_params,
                                                           downsample=down_val,
@@ -1294,7 +1298,7 @@ Valid solvers are:
                 for i in range(0, loop_count % 4):
                     msgstr = msgstr + '.'
                 if (loop_count % 5) == 0:
-                    logging.info(msgstr)
+                    logging.debug(msgstr)
 
                 if (loop_count % 10) == 0:
                     stat = self.astroclient.sub_status(sub_id, justdict=True)
@@ -1375,10 +1379,10 @@ Valid solvers are:
 
         self.tel.goto(target_jnow)
 
-        logging.info("goto started!")
+        logging.info("Slew started!")
 
         while True:
-            logging.info(f"Slewing = {self.tel.is_slewing()}")
+            logging.debug(f"Slewing = {self.tel.is_slewing()}")
             if not self.tel.is_slewing():
                 logging.info("Slew done!")
                 break
@@ -1396,7 +1400,7 @@ if __name__ == '__main__':
     LOG = logging.getLogger()
     formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s')
     CH = logging.StreamHandler()
-    CH.setLevel(logging.DEBUG)
+    CH.setLevel(logging.INFO)
     CH.setFormatter(formatter)
     LOG.addHandler(CH)
 
