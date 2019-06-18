@@ -1390,10 +1390,17 @@ Valid solvers are:
 
 
 if __name__ == '__main__':
-    logging.basicConfig(filename='pyastrometry_cli.log',
-                        filemode='w',
+    # FIXME assumes tz is set properly in system?
+    now = datetime.now()
+    logfilename = 'pyastrometry_cli-' + now.strftime('%Y%m%d%H%M%S') + '.log'
+
+#    FORMAT = '%(asctime)s %(levelname)-8s %(message)s'
+    FORMAT = '[%(filename)20s:%(lineno)3s - %(funcName)20s() ] %(levelname)-8s %(message)s'
+
+    logging.basicConfig(filename=logfilename,
+                        filemode='a',
                         level=logging.DEBUG,
-                        format='%(asctime)s %(levelname)-8s %(message)s',
+                        format=FORMAT,
                         datefmt='%Y-%m-%d %H:%M:%S')
 
     # add to screen as well
