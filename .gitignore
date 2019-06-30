@@ -8,8 +8,14 @@
 *.json
 *.ini
 *.axy
-*.wcs
 *.apm
+*.corr
+*.new
+*.match
+*.rdls
+*.solved
+*.wcs
+*.xyls
 _templates
 _static
 _build
