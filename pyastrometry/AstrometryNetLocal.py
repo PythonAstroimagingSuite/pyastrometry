@@ -2,6 +2,7 @@ import os
 import math
 import logging
 import subprocess
+import tempfile
 import numpy as np
 from astropy.coordinates import SkyCoord
 from astropy import units as u
@@ -117,12 +118,11 @@ class AstrometryNetLocal:
 # /usr/bin/solve-field -O --no-plots --no-verify --resort --no-fits2fits --do^Csample 2 -3 310.521 -4 45.3511 -5 10 --config /etc/astrometry.cfg -W /tmp/solution.wcs plate_solve_image.fits
 
         # remove any solved files
-        filename, extension = os.path.splitext(fname)
-        solved_filename = filename + '.solved'
-        logging.debug(f'{filename} {extension} {solved_filename}')
-        if os.path.isfile(solved_filename):
-            logging.debug(f'Removing existing solved file {solved_filename}')
-            os.remove(solved_filename)
+
+#        logging.debug(f'{filename} {extension} {solved_filename}')
+#        if os.path.isfile(solved_filename):
+#            logging.debug(f'Removing existing solved file {solved_filename}')
+#            os.remove(solved_filename)
 
         cmd_line = self.exec_path
         cmd_line += ' -O --no-plots --no-verify --resort'
@@ -145,72 +145,93 @@ class AstrometryNetLocal:
 
         cmd_line += f' -5 {search_rad}'
 
-        cmd_line += ' --config /etc/astrometry.cfg'
-        cmd_line += ' -W /tmp/solution.wcs'
-        cmd_line += ' --crpix-center'
+        cmd_line += ' --config /etc/astrometry.cfg '
+        #cmd_line += ' -W /tmp/solution.wcs'
+        cmd_line += ' --crpix-center '
 
         # disable most output files
-        #cmd_line += '-N none '
 #        cmd_line += '-W none '
-#        cmd_line += '-U none '
-#        cmd_line += '--axy none '
-#        cmd_line += '-I none '
-#        cmd_line += '-M none '
-#        cmd_line += '-R none '
-#        cmd_line += '-B none '
-        cmd_line += ' ' + fname
-
-        import shlex
-        cmd_args = shlex.split(cmd_line)
+        cmd_line += '-U none '
+        #cmd_line += '--axy none6 '
+        cmd_line += '-I none '
+        cmd_line += '-M none '
+        cmd_line += '-R none '
+        cmd_line += '-B none '
 
 #        cmd_line += f'{solve_params.fov_x.radian},'
 #        cmd_line += f'{solve_params.fov_y.radian},'
 #        cmd_line += fname + ','
 #        cmd_line += f'{wait}'
 
-        logging.debug(f'cmd_line for astrometry.net local = "{cmd_line}"')
-        logging.debug(f'cmd_args for astrometry.net local = "{cmd_args}"')
+
 
 #/usr/bin/solve-field -O --no-plots --no-verify --resort --no-fits2fits --do^Csample 2 -3 310.521 -4 45.3511 -5 10 --config /etc/astrometry.cfg -W /tmp/solution.wcs plate_solve_image.fits
 
-        with subprocess.Popen(cmd_args,
-                                    stdin=subprocess.PIPE,
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE,
-                                    universal_newlines=True) as net_proc:
-#        poll_value = None
-#        while True:
-#            poll_value = net_proc.poll()
-#            if poll_value is not None:
-#                break
+        #tmpdirname = tempfile.TemporaryDirectory()
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            logging.debug(f'Created temp dir {tmpdirname}')
 
-            for l in net_proc.stdout:
-                logging.debug(f'astromentrynetlocal: {l.strip()}')
+            # put solve-field files in this temp dir
+            new_fits_name = os.path.join(tmpdirname, "solved.fit")
+            solved_name = os.path.join(tmpdirname, "solved")
+            cmd_line += f'-D {tmpdirname} '
+            cmd_line += f'-N {new_fits_name} '
+            cmd_line += f'-S {solved_name} '
+            cmd_line += ' ' + fname
 
-        # see if solve succeeded
-        if os.path.isfile(solved_filename):
-            logging.info('Solved file found!')
-        else:
-            logging.error('No solved file - solve failed!')
-            return None
+            import shlex
+            cmd_args = shlex.split(cmd_line)
 
-# output
-#Field center: (RA,Dec) = (2.101258, 29.091103) deg.
-#Field center: (RA H:M:S, Dec D:M:S) = (00:08:24.302, +29:05:27.971).
-#Field size: 76.07 x 57.4871 arcminutes
-#Field rotation angle: up is 1.12149 degrees E of N
+            logging.debug(f'cmd_line for astrometry.net local = "{cmd_line}"')
+            logging.debug(f'cmd_args for astrometry.net local = "{cmd_args}"')
 
-#        for l in net_proc.stdout.readlines():
-#            ll = ''.join(filter(lambda x: x.isalnum() or x.isspace() or x == '.', l))
-#            print(ll)
+            with subprocess.Popen(cmd_args,
+                                        stdin=subprocess.PIPE,
+                                        stdout=subprocess.PIPE,
+                                        stderr=subprocess.PIPE,
+                                        universal_newlines=True) as net_proc:
+    #        poll_value = None
+    #        while True:
+    #            poll_value = net_proc.poll()
+    #            if poll_value is not None:
+    #                break
 
-        # parse solution.wcs
-        from astropy import wcs
-        import astropy.io.fits as pyfits
+                for l in net_proc.stdout:
+                    logging.debug(f'astromentrynetlocal: {l.strip()}')
 
-        wcs_hdulist = pyfits.open('/tmp/solution.wcs')
-        #print('wcs_hdulist: ', wcs_hdulist[0], vars(wcs_hdulist[0]))
-        w = wcs.WCS(wcs_hdulist[0].header)
+            # see if solve succeeded
+            if os.path.isfile(solved_name):
+                logging.info('Solved file found!')
+            else:
+
+                logging.error('No solved file - solve failed!')
+                #import time
+                #time.sleep(5)
+                return None
+
+    # output
+    #Field center: (RA,Dec) = (2.101258, 29.091103) deg.
+    #Field center: (RA H:M:S, Dec D:M:S) = (00:08:24.302, +29:05:27.971).
+    #Field size: 76.07 x 57.4871 arcminutes
+    #Field rotation angle: up is 1.12149 degrees E of N
+
+    #        for l in net_proc.stdout.readlines():
+    #            ll = ''.join(filter(lambda x: x.isalnum() or x.isspace() or x == '.', l))
+    #            print(ll)
+
+            # parse solution.wcs
+            from astropy import wcs
+            import astropy.io.fits as pyfits
+
+            #import time
+            #time.sleep(5)
+
+            wcs_hdulist = pyfits.open(new_fits_name)
+            #print(wcs_hdulist)
+            #print('wcs_hdulist: ', wcs_hdulist[0], vars(wcs_hdulist[0]))
+            w = wcs.WCS(wcs_hdulist[0].header)
+            #print(w.wcs.naxis)
+            wcs_hdulist.close()
 
         #print('wcs.wcs=', wcs)
         #print('vars(wcs.wcs): ',vars(wcs.wcs))

@@ -7,6 +7,7 @@ import time
 import json
 import argparse
 import logging
+import tempfile
 #import subprocess
 from datetime import datetime
 from configobj import ConfigObj
@@ -1037,40 +1038,44 @@ Valid solvers are:
             logging.error('run_solve_image: Unable to setup camera!')
             return
 
-        ff = os.path.join(os.getcwd(), "plate_solve_image.fits")
+        with tempfile.TemporaryDirectory() as tmpdirname:
 
-        focus_expos = self.settings.camera_exposure
-        # reset frame to full sensor
-        self.cam.set_binning(1, 1)
-        width, height = self.cam.get_size()
-        self.cam.set_frame(0, 0, width, height)
-        logging.debug(f'setting binning to {self.settings.camera_binning}')
-        self.cam.set_binning(self.settings.camera_binning, self.settings.camera_binning)
-        self.cam.start_exposure(focus_expos)
+            #ff = os.path.join(os.getcwd(), "plate_solve_image.fits")
+            ff = os.path.join(tmpdirname, "plate_solve_image.fits")
 
-        # give things time to happen (?) I get Maxim not ready errors so slowing it down
-        time.sleep(0.25)
+            focus_expos = self.settings.camera_exposure
 
-        elapsed = 0
-        while not self.cam.check_exposure():
+            # reset frame to full sensor
+            self.cam.set_binning(1, 1)
+            width, height = self.cam.get_size()
+            self.cam.set_frame(0, 0, width, height)
+            logging.debug(f'setting binning to {self.settings.camera_binning}')
+            self.cam.set_binning(self.settings.camera_binning, self.settings.camera_binning)
+            self.cam.start_exposure(focus_expos)
+
+            # give things time to happen (?) I get Maxim not ready errors so slowing it down
+            time.sleep(0.25)
+
+            elapsed = 0
+            while not self.cam.check_exposure():
+                time.sleep(0.5)
+                elapsed += 0.5
+                if elapsed > focus_expos:
+                    elapsed = focus_expos
+
+            # give it some time seems like Maxim isnt ready if we hit it too fast
             time.sleep(0.5)
-            elapsed += 0.5
-            if elapsed > focus_expos:
-                elapsed = focus_expos
 
-        # give it some time seems like Maxim isnt ready if we hit it too fast
-        time.sleep(0.5)
+            logging.debug(f"Saving image to {ff}")
+            if BACKEND == 'INDI':
+                # FIXME need better way to handle saving image to file!
+                image_data = self.cam.get_image_data()
+                # this is an hdulist
+                image_data.writeto(ff, overwrite=True)
+            else:
+                self.cam.save_image_data(ff)
 
-        logging.debug(f"Saving image to {ff}")
-        if BACKEND == 'INDI':
-            # FIXME need better way to handle saving image to file!
-            image_data = self.cam.get_image_data()
-            # this is an hdulist
-            image_data.writeto(ff, overwrite=True)
-        else:
-            self.cam.save_image_data(ff)
-
-        self.solved_j2000 = self.plate_solve_file(ff)
+            self.solved_j2000 = self.plate_solve_file(ff)
 
         return self.solved_j2000
 
@@ -1405,7 +1410,8 @@ if __name__ == '__main__':
 
     # add to screen as well
     LOG = logging.getLogger()
-    formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s')
+    FORMAT_CONSOLE = '%(asctime)s %(levelname)-8s %(message)s'
+    formatter = logging.Formatter(FORMAT_CONSOLE)
     CH = logging.StreamHandler()
     CH.setLevel(logging.INFO)
     CH.setFormatter(formatter)
