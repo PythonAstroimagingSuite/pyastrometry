@@ -38,14 +38,10 @@ from astropy.coordinates import FK5
 from astropy.coordinates import Angle
 
 from pyastroprofile.AstroProfile import AstroProfile
-#from pyastroprofile.EquipmentProfile import EquipmentProfile
-
 
 from pyastrobackend.BackendConfig import get_backend_for_os
 
 BACKEND = get_backend_for_os()
-
-#from pyastrobackend.RPC.Camera import Camera as RPC_Camera
 
 if BACKEND == 'ASCOM':
     from pyastrobackend.ASCOMBackend import DeviceBackend as Backend
@@ -56,7 +52,7 @@ else:
 
 if BACKEND == 'ASCOM':
     from pyastrobackend.MaximDL.Camera import Camera as MaximDL_Camera
-    from pyastrobackend.RPC.CameraTest import Camera as RPC_Camera
+    from pyastrobackend.RPC.Camera import Camera as RPC_Camera
 elif BACKEND == 'INDI':
     from pyastrobackend.INDIBackend import Camera as INDI_Camera
 else:
