@@ -56,6 +56,7 @@ else:
 
 if BACKEND == 'ASCOM':
     from pyastrobackend.MaximDL.Camera import Camera as MaximDL_Camera
+    from pyastrobackend.RPC.CameraTest import Camera as RPC_Camera
 elif BACKEND == 'INDI':
     from pyastrobackend.INDIBackend import Camera as INDI_Camera
 else:
@@ -679,6 +680,7 @@ The accepted commands are:
             #equip_profile = EquipmentProfile('astroprofiles/equipment', args.profile)
             #equip_profile.read()
             self.camera_driver = ap.equipment.camera.driver
+            logging.info(f'camera driver = {self.camera_driver}')
             self.mount_driver = ap.equipment.mount.driver
 
         if args.camera is not None:
@@ -925,9 +927,16 @@ Valid solvers are:
             return rc
 
     def connect_camera(self):
+        logging.debug(f'connect_camera: self.camera_driver = {self.camera_driver}')
         if BACKEND == 'ASCOM':
-            driver = 'MaximDL'
-            self.cam = MaximDL_Camera()
+            if self.camera_driver == 'MaximDL':
+                logging.debug(f'Loading MaximDL for camera')
+                driver = 'MaximDL'
+                self.cam = MaximDL_Camera()
+            elif self.camera_driver == 'RPC':
+                logging.debug(f'Loading RPC for camera')
+                driver = 'RPC'
+                self.cam = RPC_Camera()
         elif BACKEND == 'INDI':
             driver = 'INDICamera'
             self.cam = INDI_Camera(self.backend)
@@ -938,6 +947,11 @@ Valid solvers are:
             rc = self.cam.connect(self.camera_driver)
         else:
             rc = self.cam.connect(driver)
+
+        logging.debug(f'connect returned {rc}')
+        logging.info('Sleeping 3 seconds')
+        time.sleep(3)
+
 
         return rc
 
@@ -1410,10 +1424,11 @@ if __name__ == '__main__':
 
     # add to screen as well
     LOG = logging.getLogger()
-    FORMAT_CONSOLE = '%(asctime)s %(levelname)-8s %(message)s'
+    #FORMAT_CONSOLE = '%(asctime)s %(levelname)-8s %(message)s'
+    FORMAT_CONSOLE = '[%(filename)20s:%(lineno)3s - %(funcName)20s() ] %(levelname)-8s %(message)s'
     formatter = logging.Formatter(FORMAT_CONSOLE)
     CH = logging.StreamHandler()
-    CH.setLevel(logging.INFO)
+    CH.setLevel(logging.DEBUG)
     CH.setFormatter(formatter)
     LOG.addHandler(CH)
 
