@@ -1042,7 +1042,7 @@ Valid solvers are:
         self.solved_j2000 = self.plate_solve_file(fname)
 
     def run_solve_image(self):
-        logging.debug("Taking image")
+        logging.info(f'Taking {self.settings.camera_exposure} second image')
 
         if not self.setup_ccd_frame_binning():
             logging.error('run_solve_image: Unable to setup camera!')
@@ -1051,7 +1051,7 @@ Valid solvers are:
         with tempfile.TemporaryDirectory() as tmpdirname:
 
             #ff = os.path.join(os.getcwd(), "plate_solve_image.fits")
-            ff = os.path.join(tmpdirname, "plate_solve_image.fits")
+            ff = os.path.join(tmpdirname, 'plate_solve_image.fits')
 
             focus_expos = self.settings.camera_exposure
 
@@ -1076,7 +1076,7 @@ Valid solvers are:
             # give it some time seems like Maxim isnt ready if we hit it too fast
             time.sleep(0.5)
 
-            logging.debug(f"Saving image to {ff}")
+            logging.info(f'Saving image to {ff}')
             if BACKEND == 'INDI':
                 # FIXME need better way to handle saving image to file!
                 image_data = self.cam.get_image_data()
@@ -1410,7 +1410,8 @@ if __name__ == '__main__':
     logfilename = 'pyastrometry_cli-' + now.strftime('%Y%m%d%H%M%S') + '.log'
 
 #    FORMAT = '%(asctime)s %(levelname)-8s %(message)s'
-    FORMAT = '[%(filename)20s:%(lineno)3s - %(funcName)20s() ] %(levelname)-8s %(message)s'
+    #FORMAT = '[%(filename)20s:%(lineno)3s - %(funcName)20s() ] %(levelname)-8s %(message)s'
+    FORMAT = '%(asctime)s [%(filename)20s:%(lineno)3s - %(funcName)20s() ] %(levelname)-8s %(message)s'
 
     logging.basicConfig(filename=logfilename,
                         filemode='a',
@@ -1420,11 +1421,11 @@ if __name__ == '__main__':
 
     # add to screen as well
     LOG = logging.getLogger()
-    #FORMAT_CONSOLE = '%(asctime)s %(levelname)-8s %(message)s'
-    FORMAT_CONSOLE = '[%(filename)20s:%(lineno)3s - %(funcName)20s() ] %(levelname)-8s %(message)s'
+    FORMAT_CONSOLE = '%(asctime)s %(levelname)-8s %(message)s'
+    #FORMAT_CONSOLE = '[%(filename)20s:%(lineno)3s - %(funcName)20s() ] %(levelname)-8s %(message)s'
     formatter = logging.Formatter(FORMAT_CONSOLE)
     CH = logging.StreamHandler()
-    CH.setLevel(logging.DEBUG)
+    CH.setLevel(logging.INFO)
     CH.setFormatter(formatter)
     LOG.addHandler(CH)
 
