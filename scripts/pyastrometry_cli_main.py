@@ -945,9 +945,8 @@ Valid solvers are:
             rc = self.cam.connect(driver)
 
         logging.debug(f'connect returned {rc}')
-        logging.info('Sleeping 3 seconds')
-        time.sleep(3)
-
+        #logging.info('Sleeping 3 seconds')
+        #time.sleep(3)
 
         return rc
 
@@ -1064,17 +1063,18 @@ Valid solvers are:
             self.cam.start_exposure(focus_expos)
 
             # give things time to happen (?) I get Maxim not ready errors so slowing it down
-            time.sleep(0.25)
+            #time.sleep(0.25)
 
             elapsed = 0
             while not self.cam.check_exposure():
+                logging.debug(f'exposure elapsed = {elapsed} of {focus_expos}')
                 time.sleep(0.5)
                 elapsed += 0.5
                 if elapsed > focus_expos:
                     elapsed = focus_expos
 
             # give it some time seems like Maxim isnt ready if we hit it too fast
-            time.sleep(0.5)
+            #time.sleep(0.5)
 
             logging.info(f'Saving image to {ff}')
             if BACKEND == 'INDI':
