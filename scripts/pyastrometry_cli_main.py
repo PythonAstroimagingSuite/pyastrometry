@@ -39,34 +39,34 @@ from astropy.coordinates import Angle
 
 from pyastroprofile.AstroProfile import AstroProfile
 
-from pyastrobackend.BackendConfig import get_backend_for_os
-
-BACKEND = get_backend_for_os()
-
-if BACKEND == 'ASCOM':
-    from pyastrobackend.ASCOMBackend import DeviceBackend as Backend
-elif BACKEND == 'INDI':
-    from pyastrobackend.INDIBackend import DeviceBackend as Backend
-else:
-    raise Exception(f'Unknown backend {BACKEND}')
-
-if BACKEND == 'ASCOM':
-    from pyastrobackend.MaximDL.Camera import Camera as MaximDL_Camera
-    from pyastrobackend.RPC.Camera import Camera as RPC_Camera
-elif BACKEND == 'INDI':
-    from pyastrobackend.INDIBackend import Camera as INDI_Camera
-else:
-    raise Exception(f'Unknown backend {BACKEND}')
+#from pyastrobackend.BackendConfig import get_backend_for_os
+#
+#BACKEND = get_backend_for_os()
+#
+#if BACKEND == 'ASCOM':
+#    from pyastrobackend.ASCOMBackend import DeviceBackend as Backend
+#elif BACKEND == 'INDI':
+#    from pyastrobackend.INDIBackend import DeviceBackend as Backend
+#else:
+#    raise Exception(f'Unknown backend {BACKEND}')
+#
+#if BACKEND == 'ASCOM':
+#    from pyastrobackend.MaximDL.Camera import Camera as MaximDL_Camera
+#    from pyastrobackend.RPC.Camera import Camera as RPC_Camera
+#elif BACKEND == 'INDI':
+#    from pyastrobackend.INDIBackend import Camera as INDI_Camera
+#else:
+#    raise Exception(f'Unknown backend {BACKEND}')
 
 from pyastrometry.Telescope import Telescope
 
-
 from pyastrometry.PlateSolveSolution import PlateSolveSolution
-if BACKEND == 'ASCOM':
-    from pyastrometry.PlateSolve2 import PlateSolve2
-if BACKEND == 'INDI':
-    from pyastrometry.AstrometryNetLocal import AstrometryNetLocal
-    from pyastrometry.ASTAP import ASTAP
+
+#if BACKEND == 'ASCOM':
+#    from pyastrometry.PlateSolve2 import PlateSolve2
+#if BACKEND == 'INDI':
+#    from pyastrometry.AstrometryNetLocal import AstrometryNetLocal
+#    from pyastrometry.ASTAP import ASTAP
 
 def json2python(data):
     try:
@@ -439,48 +439,6 @@ class PlateSolveParameters:
 
         return retstr
 
-#    def set_fov(self, fov_x, fov_y):
-#        """Set the fov specification for plate solver.
-#
-#        Parameters
-#        ----------
-#
-#        fov_x : Angle
-#            Field of view of image along X axis
-#        fov_y : Angle
-#            Field of view of image along Y axis
-#        """
-#        self.fov_x = fov_x
-#        self.fov_y = fov_y
-#
-#    def set_pixel_scale(self, scale):
-#        """Set the pixel scale specification for plate solver.
-#
-#        Parameters
-#        ----------
-#        pixel_scale : float
-#            Pixel scale of image in arc-seconds/pixel
-#        """
-#        self.pixel_scale = scale
-#
-#    def set_radec(self, radec):
-#        """Set the center RA/DEC estimate for plate solver.
-#
-#        Parameters
-#        ----------
-#        pixel_scale : float
-#            Pixel scale of image in arc-seconds/pixel
-#        """
-#        self.radec = radec
-#
-#    def __str__(self):
-#        retstr = f"radec: {self.radec.to_string('hmsdms', sep=':')} " + \
-#                 f"fov: {self.fov_x} x {self.fov_y} " + \
-#                 f"pixel_scale: {self.pixel_scale}"
-#
-#        return retstr
-
-
 
 class ProgramSettings:
     """Stores program settings which can be saved persistently"""
@@ -502,16 +460,20 @@ class ProgramSettings:
         self.precise_slew_tries = 5
         self.max_allow_sep = 5
 
-        if BACKEND == 'ASCOM':
+        # set some defaults based on OS as to which plate solver is the default
+        if os.name == 'nt':
+            self.backend = 'ASCOM'
             self.platesolve2_location = "PlateSolve2.exe"
-            #self.platesolve2_location = "Program\ Files\ \(x86\)/Voyager/PlateSolve2.exe"
             self.platesolve2_regions = 999
             self.platesolve2_wait_time = 10
-        elif BACKEND == 'INDI':
+        elif os.name == 'posix':
+            self.backend = 'INDI'
             self.astrometrynetlocal_location = '/usr/bin/solve-field'
             self.astrometrynetlocal_downsample = 2
             self.astrometrynetlocal_search_rad_deg = 10
             self.ASTAP_location = '/usr/local/bin/astap'
+        else:
+            raise Exception("Sorry: no implementation for your platform ('%s') available" % os.name)
 
     # FIXME This will break HORRIBLY unless passed an attribute already
     #       in the ConfigObj dictionary
@@ -597,44 +559,49 @@ class MyApp:
         logging.debug(f'startup settings: {self.settings}')
 
         # FIXME This is an ugly section of code
-        self.backend = Backend()
+#        self.backend = Backend()
+#
+#        rc = self.backend.connect()
+#        if not rc:
+#            logging.error('Failed to connect to backend!')
+#            sys.exit(-1)
+#
+#        self.cam = None
+#
+#        if BACKEND == 'ASCOM':
+#            self.cam = MaximDL_Camera()
+#        elif BACKEND == 'INDI':
+#            self.cam = INDI_Camera(self.backend)
+#        else:
+#            logging.error(f'Unknown BACKEND = {BACKEND}!')
+#            sys.exit(1)
+#
+#        # telescope
+#        # FIXME Shouldn't have to make separate call for ASCOM!!
+#        if BACKEND == 'ASCOM':
+#            self.tel = Telescope()
+#        elif BACKEND == 'INDI':
+#            self.tel = Telescope(self.backend)
 
-        rc = self.backend.connect()
-        if not rc:
-            logging.error('Failed to connect to backend!')
-            sys.exit(-1)
-
-        self.cam = None
-
-        if BACKEND == 'ASCOM':
-            self.cam = MaximDL_Camera()
-        elif BACKEND == 'INDI':
-            self.cam = INDI_Camera(self.backend)
-        else:
-            logging.error(f'Unknown BACKEND = {BACKEND}!')
-            sys.exit(1)
-
-        # telescope
-        # FIXME Shouldn't have to make separate call for ASCOM!!
-        if BACKEND == 'ASCOM':
-            self.tel = Telescope()
-        elif BACKEND == 'INDI':
-            self.tel = Telescope(self.backend)
-
-        self.camera_driver = None
-        self.telescope_driver = None
+#        self.camera_driver = None
+#        self.telescope_driver = None
 
         # init vars
         self.solved_j2000 = None
 
         self.target_j2000 = None
 
+        self.camera_binning = self.settings.camera_binning
+
         # platesolve2
-        if BACKEND == 'ASCOM':
+        if os.name == 'nt':
+            from pyastrometry.PlateSolve2 import PlateSolve2
             self.platesolve2 = PlateSolve2(self.settings.platesolve2_location)
 
         # astrometry.net local
-        if BACKEND == 'INDI':
+        if os.name == 'posix':
+            from pyastrometry.AstrometryNetLocal import AstrometryNetLocal
+            from pyastrometry.ASTAP import ASTAP
             self.astrometrynetlocal = AstrometryNetLocal(self.settings.astrometrynetlocal_location)
             self.astrometrynetlocal.probe_solve_field_revision()
             self.ASTAP = ASTAP(self.settings.ASTAP_location)
@@ -645,9 +612,11 @@ class MyApp:
                                          usage='''pyastrometry_cli <operation> [<args>]
 
 The accepted commands are:
+   getpos   Return current RA/DEC of mount
    solvepos     Take an image and solve current position
    solveimage <filename>    Solve position of an image file
    sync         Take an image, solve and sync mount
+   slew <ra> <dec> Slew to position
    slewsolve  <ra> <dec>  Slew to position and plate solve and slew until within threshold
 ''')
         parser.add_argument('operation', type=str, help='Operation to perform')
@@ -663,6 +632,7 @@ The accepted commands are:
         logging.debug('parse_devices()')
         parser = argparse.ArgumentParser()
         parser.add_argument('--profile', type=str, help='Name of astro profile')
+        parser.add_argument('--backend', type=str, help='Name of device backend')
         parser.add_argument('--mount', type=str, help='Name of mount driver')
         parser.add_argument('--camera', type=str, help='Name of camera driver')
         parser.add_argument('--exposure', type=float, help='Exposure time')
@@ -670,14 +640,24 @@ The accepted commands are:
         args, unknown = parser.parse_known_args(sys.argv)
 
         if args.profile is not None:
-            logging.info(f'Setting up devicec using astro profile {args.profile}')
+            logging.info(f'Setting up device using astro profile {args.profile}')
             ap = AstroProfile()
             ap.read(args.profile)
             #equip_profile = EquipmentProfile('astroprofiles/equipment', args.profile)
             #equip_profile.read()
+            self.backend_name = ap.equipment.backend.name
+            logging.info(f'profile backend = {self.backend_name}')
             self.camera_driver = ap.equipment.camera.driver
-            logging.info(f'camera driver = {self.camera_driver}')
+            logging.info(f'profile camera driver = {self.camera_driver}')
             self.mount_driver = ap.equipment.mount.driver
+            logging.info(f'profile mount driver = {self.mount_driver}')
+            binning = ap.settings.platesolve.binning
+            if binning is not None:
+                self.camera_binning = binning
+                logging.info(f'profile binning = {self.camera_binning}')
+
+        if args.backend is not None:
+            self.backend_name = args.backend
 
         if args.camera is not None:
             self.camera_driver = args.camera
@@ -685,12 +665,16 @@ The accepted commands are:
         if args.mount is not None:
             self.mount_driver = args.telescope
 
+        if self.backend_name is None:
+            logging.error('Must configure backend!')
+            sys.exit(1)
+
         if self.mount_driver is None:
-            logging.error(f'Must configure mount driver!')
+            logging.error('Must configure mount driver!')
             sys.exit(1)
 
         if self.camera_driver is None:
-            logging.error(f'Must configure camera driver!')
+            logging.error('Must configure camera driver!')
             sys.exit(1)
 
         if args.exposure is not None:
@@ -701,6 +685,7 @@ The accepted commands are:
             logging.debug(f'Set camera binning to {args.binning}')
             self.camera_binning = args.binning
 
+        logging.debug(f'Using device backend {self.backend_name}')
         logging.debug(f'Using camera_drver = {self.camera_driver}')
         logging.debug(f'Using mount_driver = {self.mount_driver}')
 #        logging.info(f'Using camera_exposure = {self.camera_exposure}')
@@ -723,9 +708,9 @@ Valid solvers are:
         args, unknown = parser.parse_known_args(sys.argv)
 
         if args.solver is None:
-            if BACKEND == 'ASCOM':
+            if os.name == 'nt':
                 self.solver = 'platesolve2'
-            elif BACKEND == 'INDI':
+            elif os.name == 'posix':
                 self.solver = 'astrometrylocal'
             else:
                 logging.error('No solver specified and no default found')
@@ -829,6 +814,15 @@ Valid solvers are:
         needdevs = operation in ['solvepos', 'syncpos', 'slewsolve', 'getpos', 'slew']
         if needdevs:
             self.parse_devices()
+
+            logging.debug(f'self.backend_name = {self.backend_name}')
+            rc = self.connect_backend()
+            if not rc:
+                logging.error(f'Could not connec to backend {self.backend_name}!')
+                sys.exit(1)
+            else:
+                logging.debug(f'Backend {self.backend_name} connected')
+
             logging.debug(f'camera/mount = {self.camera_driver} {self.mount_driver}')
 
             rc = self.connect_mount()
@@ -917,37 +911,56 @@ Valid solvers are:
         self.settings.write()
         sys.exit(0)
 
+    def connect_backend(self):
+        if self.backend_name == 'ASCOM':
+            from pyastrobackend.ASCOMBackend import DeviceBackend as Backend
+        elif self.backend_name == 'RPC':
+            from pyastrobackend.RPCBackend import DeviceBackend as Backend
+        elif self.backend_name == 'INDI':
+            from pyastrobackend.INDIBackend import DeviceBackend as Backend
+        else:
+            raise Exception(f'Unknown backend {self.backend_name} - choose ASCOM/RPC/INDI')
+
+        logging.info(f'Connecting to backend {self.backend_name}')
+        self.backend = Backend()
+        return self.backend.connect()
+
     def connect_mount(self):
-        if self.mount_driver:
-            rc = self.tel.connect_to_telescope(self.mount_driver)
-            return rc
+        if self.backend_name == 'ASCOM':
+            from pyastrobackend.ASCOM.Mount import Mount as MountClass
+        elif self.backend_name == 'RPC':
+            from pyastrobackend.RPC.Mount import Mount as MountClass
+        elif self.backend_name == 'INDI':
+            from pyastrobackend.INDIBackend import Mount as MountClass
+        else:
+            raise Exception(f'Unknown backend {self.backend_name} - choose ASCOM/RPC/INDI')
+
+        # create Telescope class on the fly
+        TelescopeClass = type('Telescope', (Telescope, MountClass), {})
+        self.tel = TelescopeClass(self.backend)
+        return self.tel.connect_to_telescope(self.mount_driver)
 
     def connect_camera(self):
         logging.debug(f'connect_camera: self.camera_driver = {self.camera_driver}')
-        if BACKEND == 'ASCOM':
+        if self.backend_name == 'ASCOM':
             if self.camera_driver == 'MaximDL':
+                from pyastrobackend.MaximDL.Camera import Camera as MaximDL_Camera
                 logging.debug(f'Loading MaximDL for camera')
-                driver = 'MaximDL'
                 self.cam = MaximDL_Camera()
-            elif self.camera_driver == 'RPC':
+            else:
+                raise Exception(f'connect_camera(): unknown camera driver {self.camera_driver}')
+        elif self.backend_name == 'RPC':
+                from pyastrobackend.RPC.Camera import Camera as RPC_Camera
                 logging.debug(f'Loading RPC for camera')
-                driver = 'RPC'
                 self.cam = RPC_Camera()
-        elif BACKEND == 'INDI':
-            driver = 'INDICamera'
+        elif self.backend_name == 'INDI':
+            from pyastrobackend.INDIBackend import Camera as INDI_Camera
+            logging.debug(f'Loading INDI for camera')
             self.cam = INDI_Camera(self.backend)
 
-        logging.debug(f'connect_camera: driver = {driver}')
-
-        if driver == 'INDICamera':
-            rc = self.cam.connect(self.camera_driver)
-        else:
-            rc = self.cam.connect(driver)
+        rc = self.cam.connect(self.camera_driver)
 
         logging.debug(f'connect returned {rc}')
-        #logging.info('Sleeping 3 seconds')
-        #time.sleep(3)
-
         return rc
 
     def json_print_plate_solution(self, sol):
@@ -1058,8 +1071,8 @@ Valid solvers are:
             self.cam.set_binning(1, 1)
             width, height = self.cam.get_size()
             self.cam.set_frame(0, 0, width, height)
-            logging.debug(f'setting binning to {self.settings.camera_binning}')
-            self.cam.set_binning(self.settings.camera_binning, self.settings.camera_binning)
+            logging.debug(f'setting binning to {self.camera_binning}')
+            self.cam.set_binning(self.camera_binning, self.camera_binning)
             self.cam.start_exposure(focus_expos)
 
             # give things time to happen (?) I get Maxim not ready errors so slowing it down
@@ -1077,7 +1090,7 @@ Valid solvers are:
             #time.sleep(0.5)
 
             logging.info(f'Saving image to {ff}')
-            if BACKEND == 'INDI':
+            if os.name == 'posix':
                 # FIXME need better way to handle saving image to file!
                 image_data = self.cam.get_image_data()
                 # this is an hdulist
@@ -1103,10 +1116,10 @@ Valid solvers are:
 
         self.cam.set_frame(0, 0, width, height)
 
-        self.cam.set_binning(self.settings.camera_binning, self.settings.camera_binning)
+        self.cam.set_binning(self.camera_binning, self.camera_binning)
 
         logging.debug("CCD size: %d x %d ", width, height)
-        logging.debug("CCD bin : %d x %d ", self.settings.camera_binning, self.settings.camera_binning)
+        logging.debug("CCD bin : %d x %d ", self.camera_binning, self.camera_binning)
 
         return True
 
@@ -1421,11 +1434,14 @@ if __name__ == '__main__':
 
     # add to screen as well
     LOG = logging.getLogger()
-    FORMAT_CONSOLE = '%(asctime)s %(levelname)-8s %(message)s'
-    #FORMAT_CONSOLE = '[%(filename)20s:%(lineno)3s - %(funcName)20s() ] %(levelname)-8s %(message)s'
+    #FORMAT_CONSOLE = '%(asctime)s %(levelname)-8s %(message)s'
+    FORMAT_CONSOLE = '[%(filename)20s:%(lineno)3s - %(funcName)20s() ] %(levelname)-8s %(message)s'
+    #FORMAT_CONSOLE = '[%(pathname)s %(module)s %(filename)20s:%(lineno)3s - %(funcName)20s() ] %(levelname)-8s %(message)s'
+
+
     formatter = logging.Formatter(FORMAT_CONSOLE)
     CH = logging.StreamHandler()
-    CH.setLevel(logging.INFO)
+    CH.setLevel(logging.DEBUG)
     CH.setFormatter(formatter)
     LOG.addHandler(CH)
 

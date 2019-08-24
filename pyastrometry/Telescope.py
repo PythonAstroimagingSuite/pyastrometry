@@ -6,19 +6,20 @@ from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.coordinates import FK5
 
-from pyastrobackend.BackendConfig import get_backend_for_os
+#from pyastrobackend.BackendConfig import get_backend_for_os
+#
+#BACKEND = get_backend_for_os()
+#
+#if BACKEND == 'ASCOM':
+#    from pyastrobackend.ASCOM.Mount import Mount as MountClass
+#elif BACKEND == 'INDI':
+#    from pyastrobackend.INDIBackend import Mount as MountClass
+#else:
+#    raise Exception(f'Unknown backend {BACKEND} - choose ASCOM or INDI in BackendConfig.py')
 
-BACKEND = get_backend_for_os()
 
-if BACKEND == 'ASCOM':
-    from pyastrobackend.ASCOM.Mount import Mount as MountClass
-elif BACKEND == 'INDI':
-    from pyastrobackend.INDIBackend import Mount as MountClass
-else:
-    raise Exception(f'Unknown backend {BACKEND} - choose ASCOM or INDI in BackendConfig.py')
-
-
-class Telescope(MountClass):
+#class Telescope(MountClass):
+class Telescope:
     """
     Abstraction layer for mounts and handling J2000/JNow coordinates.
     """
@@ -127,7 +128,7 @@ class Telescope(MountClass):
                      f'{pos.dec.to_string(unit=u.degree, sep=":")}')
         try:
            super().sync(pos.ra.hour, pos.dec.degree)
-        except Exception as e:
+        except Exception:
             logging.error('sync() Exception ->', exc_info=True)
             return False
 
