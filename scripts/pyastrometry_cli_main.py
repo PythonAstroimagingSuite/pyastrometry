@@ -39,6 +39,9 @@ from astropy.coordinates import Angle
 
 from pyastroprofile.AstroProfile import AstroProfile
 
+from pyastrobackend.BackendConfig import get_backend_for_os, get_backend, get_backend_choices
+
+
 #from pyastrobackend.BackendConfig import get_backend_for_os
 #
 #BACKEND = get_backend_for_os()
@@ -912,51 +915,58 @@ Valid solvers are:
         sys.exit(0)
 
     def connect_backend(self):
-        if self.backend_name == 'ASCOM':
-            from pyastrobackend.ASCOMBackend import DeviceBackend as Backend
-        elif self.backend_name == 'RPC':
-            from pyastrobackend.RPCBackend import DeviceBackend as Backend
-        elif self.backend_name == 'INDI':
-            from pyastrobackend.INDIBackend import DeviceBackend as Backend
-        else:
-            raise Exception(f'Unknown backend {self.backend_name} - choose ASCOM/RPC/INDI')
+#        if self.backend_name == 'ASCOM':
+#            from pyastrobackend.ASCOMBackend import DeviceBackend as Backend
+#        elif self.backend_name == 'RPC':
+#            from pyastrobackend.RPCBackend import DeviceBackend as Backend
+#        elif self.backend_name == 'INDI':
+#            from pyastrobackend.INDIBackend import DeviceBackend as Backend
+#        else:
+#            raise Exception(f'Unknown backend {self.backend_name} - choose ASCOM/RPC/INDI')
+#
+#        logging.info(f'Connecting to backend {self.backend_name}')
+#        self.backend = Backend()
+#        return self.backend.connect()
 
-        logging.info(f'Connecting to backend {self.backend_name}')
-        self.backend = Backend()
+        self.backend = get_backend(self.backend_name)
         return self.backend.connect()
 
     def connect_mount(self):
-        if self.backend_name == 'ASCOM':
-            from pyastrobackend.ASCOM.Mount import Mount as MountClass
-        elif self.backend_name == 'RPC':
-            from pyastrobackend.RPC.Mount import Mount as MountClass
-        elif self.backend_name == 'INDI':
-            from pyastrobackend.INDIBackend import Mount as MountClass
-        else:
-            raise Exception(f'Unknown backend {self.backend_name} - choose ASCOM/RPC/INDI')
+#        if self.backend_name == 'ASCOM':
+#            from pyastrobackend.ASCOM.Mount import Mount as MountClass
+#        elif self.backend_name == 'RPC':
+#            from pyastrobackend.RPC.Mount import Mount as MountClass
+#        elif self.backend_name == 'INDI':
+#            from pyastrobackend.INDIBackend import Mount as MountClass
+#        else:
+#            raise Exception(f'Unknown backend {self.backend_name} - choose ASCOM/RPC/INDI')
 
+        # find class of mount type and make a new class including extra functionality
         # create Telescope class on the fly
-        TelescopeClass = type('Telescope', (Telescope, MountClass), {})
+        mount_dev = self.backend.newMount()
+        TelescopeClass = type('Telescope', (Telescope, type(mount_dev)), {})
         self.tel = TelescopeClass(self.backend)
         return self.tel.connect_to_telescope(self.mount_driver)
 
     def connect_camera(self):
         logging.debug(f'connect_camera: self.camera_driver = {self.camera_driver}')
-        if self.backend_name == 'ASCOM':
-            if self.camera_driver == 'MaximDL':
-                from pyastrobackend.MaximDL.Camera import Camera as MaximDL_Camera
-                logging.debug(f'Loading MaximDL for camera')
-                self.cam = MaximDL_Camera()
-            else:
-                raise Exception(f'connect_camera(): unknown camera driver {self.camera_driver}')
-        elif self.backend_name == 'RPC':
-                from pyastrobackend.RPC.Camera import Camera as RPC_Camera
-                logging.debug(f'Loading RPC for camera')
-                self.cam = RPC_Camera()
-        elif self.backend_name == 'INDI':
-            from pyastrobackend.INDIBackend import Camera as INDI_Camera
-            logging.debug(f'Loading INDI for camera')
-            self.cam = INDI_Camera(self.backend)
+#        if self.backend_name == 'ASCOM':
+#            if self.camera_driver == 'MaximDL':
+#                from pyastrobackend.MaximDL.Camera import Camera as MaximDL_Camera
+#                logging.debug(f'Loading MaximDL for camera')
+#                self.cam = MaximDL_Camera()
+#            else:
+#                raise Exception(f'connect_camera(): unknown camera driver {self.camera_driver}')
+#        elif self.backend_name == 'RPC':
+#                from pyastrobackend.RPC.Camera import Camera as RPC_Camera
+#                logging.debug(f'Loading RPC for camera')
+#                self.cam = RPC_Camera()
+#        elif self.backend_name == 'INDI':
+#            from pyastrobackend.INDIBackend import Camera as INDI_Camera
+#            logging.debug(f'Loading INDI for camera')
+#            self.cam = INDI_Camera(self.backend)
+
+        self.cam = self.backend.newCamera()
 
         rc = self.cam.connect(self.camera_driver)
 
