@@ -618,7 +618,7 @@ The accepted commands are:
    getpos   Return current RA/DEC of mount
    solvepos     Take an image and solve current position
    solveimage <filename>    Solve position of an image file
-   sync         Take an image, solve and sync mount
+   syncpos      Take an image, solve and sync mount
    slew <ra> <dec> Slew to position
    slewsolve  <ra> <dec>  Slew to position and plate solve and slew until within threshold
 ''')
@@ -1451,7 +1451,7 @@ if __name__ == '__main__':
 
     formatter = logging.Formatter(FORMAT_CONSOLE)
     CH = logging.StreamHandler()
-    CH.setLevel(logging.DEBUG)
+    CH.setLevel(logging.INFO)
     CH.setFormatter(formatter)
     LOG.addHandler(CH)
 
