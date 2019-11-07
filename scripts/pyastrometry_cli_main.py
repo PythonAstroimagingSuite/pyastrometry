@@ -601,13 +601,16 @@ class MyApp:
             from pyastrometry.PlateSolve2 import PlateSolve2
             self.platesolve2 = PlateSolve2(self.settings.platesolve2_location)
 
+            from pyastrometry.ASTAP import ASTAP
+            self.ASTAP = ASTAP(self.settings.astap_location)
+
         # astrometry.net local
         if os.name == 'posix':
             from pyastrometry.AstrometryNetLocal import AstrometryNetLocal
             from pyastrometry.ASTAP import ASTAP
             self.astrometrynetlocal = AstrometryNetLocal(self.settings.astrometrynetlocal_location)
             self.astrometrynetlocal.probe_solve_field_revision()
-            self.ASTAP = ASTAP(self.settings.ASTAP_location)
+            self.ASTAP = ASTAP(self.settings.astap_location)
 
     def parse_operation(self):
         logging.debug('parse_operation()')
@@ -658,6 +661,10 @@ The accepted commands are:
             if binning is not None:
                 self.camera_binning = binning
                 logging.info(f'profile binning = {self.camera_binning}')
+            solver = ap.settings.platesolve.solver
+            if solver is not None:
+                self.solver = solver
+                logging.info(f'profile solver = {self.solver}')
 
         if args.backend is not None:
             self.backend_name = args.backend
@@ -1153,6 +1160,8 @@ Valid solvers are:
             return self.plate_solve_file_astromentrynetlocal(fname)
         elif self.solver == 'platesolve2':
             return self.plate_solve_file_platesolve2(fname)
+        elif self.solver == 'astap':
+            return self.plate_solve_file_ASTAP(fname)
         else:
             logging.error('plate_solve_file: Unknown solver selected!!')
             return None

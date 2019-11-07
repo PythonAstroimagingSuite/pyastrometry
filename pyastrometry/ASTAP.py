@@ -43,8 +43,8 @@ class ASTAP:
 # /usr/bin/SDYSP -f <fits-file> -r <search-rad> -fov <fov> -ra <ra_guess> -dec <dec_guess> -z <downsample>
 
         cmd_line = self.exec_path
-        cmd_line += f' -ra {solve_params.radec.ra.degree}'
-        cmd_line += f' -dec {solve_params.radec.dec.degree}'
+        cmd_line += f' -ra {solve_params.radec.ra.hour}'
+        cmd_line += f' -sdp {solve_params.radec.dec.degree+90}'
 
         cmd_line += f' -fov {solve_params.fov_x.degree}'
 
@@ -56,6 +56,15 @@ class ASTAP:
 
         cmd_line += ' -f ' + fname
 
+        # output file
+        (base, ext) = os.path.splitext(fname)
+        out_fname = base
+
+        if os.path.isfile(out_fname+'.ini'):
+            os.unlink(out_fname+'.ini')
+
+        cmd_line += ' -o ' + out_fname
+
         import shlex
         cmd_args = shlex.split(cmd_line)
 
@@ -64,62 +73,72 @@ class ASTAP:
 
 #/usr/bin/solve-field -O --no-plots --no-verify --resort --no-fits2fits --do^Csample 2 -3 310.521 -4 45.3511 -5 10 --config /etc/astrometry.cfg -W /tmp/solution.wcs plate_solve_image.fits
 
-        net_proc = subprocess.Popen(cmd_args,
+        with subprocess.Popen(cmd_line,
                                     stdin=subprocess.PIPE,
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE,
-                                    universal_newlines=True)
-        poll_value = None
-        while True:
-            poll_value = net_proc.poll()
-            if poll_value is not None:
-                break
+                                    universal_newlines=True) as ps_proc:
 
-# output
-#Field center: (RA,Dec) = (2.101258, 29.091103) deg.
-#Field center: (RA H:M:S, Dec D:M:S) = (00:08:24.302, +29:05:27.971).
-#Field size: 76.07 x 57.4871 arcminutes
-#Field rotation angle: up is 1.12149 degrees E of N
+            logging.debug('ASTAP_proc output:')
+            for l in ps_proc.stdout:
+                logging.debug(f'ASTAP: {l.strip()}')
+            logging.debug('end of output')
 
+
+        try:
+            out_file = open(out_fname+'.ini', 'r')
+        except OSError as err:
+            print(f"Error opening output file: {err}")
+            return None
+
+        solved_str = None
         ra_str = None
         dec_str = None
         ang_str = None
-        fov_x_str = None
-        for l in net_proc.stdout.readlines():
-            ll = ''.join(filter(lambda x: x.isalnum() or x.isspace() or x == '.', l))
-            print(ll)
-            fields = ll.split()
+        pixelscale_str = None
+        for l in out_file.readlines():
+            print('l', l)
+            ll = l.strip()
+#            ll = ''.join(filter(lambda x: x.isalnum() or x.isspace() or x == '.', l))
+#            print(ll)
+            fields = ll.split('=')
+            print ('fields', fields)
             # look for ra/dec in deg first
+            if len(fields) != 2:
+                continue
+
             if 'CRVAL1' in ll:
                 # should look like:
                 # Field center RADec  2.101258 29.091103 deg
                 print('CRVAL1', fields)
+                ra_str = fields[1]
             elif 'CRVAL2' in ll:
                 # should look like:
                 # Field rotation angle up is 1.12149 degrees E of N.
                 print('CRVAL2', fields)
-            elif 'CRDELT1' in ll:
+                dec_str = fields[1]
+            elif 'CDELT1' in ll:
                 print('CDELT1', fields)
+                pixelscale_str = fields[1]
             elif 'CROTA1' in ll:
                 print('CROTA1', fields)
+                ang_str = fields[1]
+            elif 'PLTSOLVD' in ll:
+                print('PLTSOLVED', fields)
+                solved_str = fields[1]
 
-        logging.info(f'{ra_str} {dec_str} {ang_str}')
+
+        logging.info(f'{solved_str} {ra_str} {dec_str} {ang_str} {pixelscale_str}')
+
+        if solved_str != 'T':
+            logging.exception('Failed to parse solution')
+            return None
 
         try:
             solved_ra = float(ra_str)
             solved_dec = float(dec_str)
             solved_angle = float(ang_str)
-
-            # fov is given in arcmin so convert to arcsec
-            fov_x = float(fov_x_str)*60.0
-
-            logging.info(f'solved fov = {fov_x} arcsec')
-            if solve_params.width is not None:
-                solved_scale = fov_x / solve_params.width
-                logging.info(f'using given width of {solve_params.width} pixel scale is {solved_scale} arcsec/pix')
-            else:
-                solved_scale = None
-                logging.warning('No width given so pixel scale not computed!')
+            solved_scale = float(pixelscale_str)*3600
 
         except Exception as e:
             logging.exception('Failed to parse solution')
@@ -129,9 +148,84 @@ class ASTAP:
 
         radec = SkyCoord(ra=solved_ra*u.degree, dec=solved_dec*u.degree, frame='fk5', equinox='J2000')
         return PlateSolveSolution(radec, pixel_scale=solved_scale,
-                                  angle=Angle(solved_angle*u.deg), binning=solve_params.bin_x)
+                           angle=Angle(solved_angle*u.deg), binning=solve_params.bin_x)
 
 
+
+
+
+
+# OLD CODE
+# =============================================================================
+#         net_proc = subprocess.Popen(cmd_args,
+#                                     stdin=subprocess.PIPE,
+#                                     stdout=subprocess.PIPE,
+#                                     stderr=subprocess.PIPE,
+#                                     universal_newlines=True)
+#         poll_value = None
+#         while True:
+#             poll_value = net_proc.poll()
+#             if poll_value is not None:
+#                 break
+#
+# # output
+# #Field center: (RA,Dec) = (2.101258, 29.091103) deg.
+# #Field center: (RA H:M:S, Dec D:M:S) = (00:08:24.302, +29:05:27.971).
+# #Field size: 76.07 x 57.4871 arcminutes
+# #Field rotation angle: up is 1.12149 degrees E of N
+#
+#         ra_str = None
+#         dec_str = None
+#         ang_str = None
+#         fov_x_str = None
+#         for l in net_proc.stdout.readlines():
+#             ll = ''.join(filter(lambda x: x.isalnum() or x.isspace() or x == '.', l))
+#             print(ll)
+#             fields = ll.split()
+#             # look for ra/dec in deg first
+#             if 'CRVAL1' in ll:
+#                 # should look like:
+#                 # Field center RADec  2.101258 29.091103 deg
+#                 print('CRVAL1', fields)
+#             elif 'CRVAL2' in ll:
+#                 # should look like:
+#                 # Field rotation angle up is 1.12149 degrees E of N.
+#                 print('CRVAL2', fields)
+#             elif 'CRDELT1' in ll:
+#                 print('CDELT1', fields)
+#             elif 'CROTA1' in ll:
+#                 print('CROTA1', fields)
+#
+#         logging.info(f'{ra_str} {dec_str} {ang_str}')
+#
+#         try:
+#             solved_ra = float(ra_str)
+#             solved_dec = float(dec_str)
+#             solved_angle = float(ang_str)
+#
+#             # fov is given in arcmin so convert to arcsec
+#             fov_x = float(fov_x_str)*60.0
+#
+#             logging.info(f'solved fov = {fov_x} arcsec')
+#             if solve_params.width is not None:
+#                 solved_scale = fov_x / solve_params.width
+#                 logging.info(f'using given width of {solve_params.width} pixel scale is {solved_scale} arcsec/pix')
+#             else:
+#                 solved_scale = None
+#                 logging.warning('No width given so pixel scale not computed!')
+#
+#         except Exception as e:
+#             logging.exception('Failed to parse solution')
+#             return None
+#
+#         logging.info(f'{solved_ra} {solved_dec} {solved_angle} {solved_scale}')
+#
+#         radec = SkyCoord(ra=solved_ra*u.degree, dec=solved_dec*u.degree, frame='fk5', equinox='J2000')
+#         return PlateSolveSolution(radec, pixel_scale=solved_scale,
+#                                   angle=Angle(solved_angle*u.deg), binning=solve_params.bin_x)
+#
+#
+# =============================================================================
 
 # from https://groups.google.com/forum/#!topic/adass.iraf.applications/1J3W3RDacjM
 
