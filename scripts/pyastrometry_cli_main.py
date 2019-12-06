@@ -1016,6 +1016,8 @@ Valid solvers are:
         # check if its WAY OFF
         if sep > self.settings.max_allow_sep:
             logging.error(f'Sync pos is more than {self.settings.max_allow_sep} degrees off - skipping sync')
+            # should this raise an error?  Something like precise slew will never
+            # finish if sync is skipped+
         else:
             if not self.tel.sync(solved_jnow):
                 logging.error('Error occurred syncing mount!')
@@ -1032,15 +1034,29 @@ Valid solvers are:
 
         ntries = 0
         while ntries < self.settings.precise_slew_tries:
-            logging.info('Precise slew - solving current position')
+            solve_tries = 0
+            max_solve_tries = 3
+            curpos_j2000 = None
+            while solve_tries < max_solve_tries:
+                logging.info('Precise slew - solving current position '
+                            f'try {solve_tries+1} of {max_solve_tries}.')
 
-            curpos_j2000 = self.run_solve_image()
+                curpos_j2000 = self.run_solve_image()
 
-            logging.info('Precise slew - position solved')
-            logging.info(f"solved position is (J2000) {curpos_j2000.radec.to_string('hmsdms', sep=':')}")
+                if curpos_j2000 is None:
+                    solve_tries += 1
+                    logging.error('Unable to solve current position on '
+                                  f'try {solve_tries} of {max_solve_tries}.')
+                    continue
+                else:
+                    logging.info('Precise slew complete')
+                    logging.info(f'Solved position is (J2000) '
+                                 f'{curpos_j2000.radec.to_string("hmsdms", sep=":")}')
+                    break
 
             if curpos_j2000 is None:
-               logging.error('Precise slew failed - unable to solve current position.')
+               logging.error('Precise slew failed - unable to solve current '
+                             f'position after {max_solve_tries} tries.')
                return False
 
             self.solved_j2000 = curpos_j2000
