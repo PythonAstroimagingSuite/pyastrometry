@@ -973,7 +973,15 @@ Valid solvers are:
 #            logging.debug(f'Loading INDI for camera')
 #            self.cam = INDI_Camera(self.backend)
 
-        self.cam = self.backend.newCamera()
+        # YUCK MAXIM MIXED IN
+        if self.backend_name == 'ASCOM':
+            if self.camera_driver == 'MaximDL':
+                logging.info('Creating MaximDL camera object')
+                self.cam = self.backend.newMaximDLCamera()
+            else:
+                self.cam = self.backend.newCamera()
+        else:
+            self.cam = self.backend.newCamera()
 
         rc = self.cam.connect(self.camera_driver)
 

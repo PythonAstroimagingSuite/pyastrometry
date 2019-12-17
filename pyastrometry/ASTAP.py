@@ -97,12 +97,12 @@ class ASTAP:
         ang_str = None
         pixelscale_str = None
         for l in out_file.readlines():
-            print('l', l)
+            #print('l', l)
             ll = l.strip()
 #            ll = ''.join(filter(lambda x: x.isalnum() or x.isspace() or x == '.', l))
 #            print(ll)
             fields = ll.split('=')
-            print ('fields', fields)
+            #print ('fields', fields)
             # look for ra/dec in deg first
             if len(fields) != 2:
                 continue
@@ -110,21 +110,21 @@ class ASTAP:
             if 'CRVAL1' in ll:
                 # should look like:
                 # Field center RADec  2.101258 29.091103 deg
-                print('CRVAL1', fields)
+                #print('CRVAL1', fields)
                 ra_str = fields[1]
             elif 'CRVAL2' in ll:
                 # should look like:
                 # Field rotation angle up is 1.12149 degrees E of N.
-                print('CRVAL2', fields)
+                #print('CRVAL2', fields)
                 dec_str = fields[1]
             elif 'CDELT1' in ll:
-                print('CDELT1', fields)
+                #print('CDELT1', fields)
                 pixelscale_str = fields[1]
             elif 'CROTA1' in ll:
-                print('CROTA1', fields)
+                #print('CROTA1', fields)
                 ang_str = fields[1]
             elif 'PLTSOLVD' in ll:
-                print('PLTSOLVED', fields)
+                #print('PLTSOLVED', fields)
                 solved_str = fields[1]
 
 
