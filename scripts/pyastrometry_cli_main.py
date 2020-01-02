@@ -30,7 +30,8 @@ from email.mime.application  import MIMEApplication
 
 from email.encoders import encode_noop
 
-import astropy.io.fits as pyfits
+#import astropy.io.fits as pyfits
+from astropy.io import fits
 from astropy.time import Time
 from astropy import units as u
 from astropy.coordinates import SkyCoord
@@ -310,7 +311,7 @@ def read_radec_from_FITS(fname):
     radec : SkyCoord
         RA/DEC read from FITS header - assumes J2000.
     """
-    hdulist = pyfits.open(fname)
+    hdulist = fits.open(fname)
     prihdr = hdulist[0].header
     hdulist.close()
 
@@ -350,7 +351,7 @@ def read_image_info_from_FITS(fname):
         Binning along X/Y axis
     """
     try:
-        hdulist = pyfits.open(fname)
+        hdulist = fits.open(fname)
     except Exception as err:
         logging.error(f"read_image_info_from_FITS: error opening {fname} - {err}")
         return None
@@ -1111,6 +1112,8 @@ Valid solvers are:
             # reset frame to full sensor
             self.cam.set_binning(1, 1)
             width, height = self.cam.get_size()
+            width = width/self.camera_binning
+            height = height/self.camera_binning
             self.cam.set_frame(0, 0, width, height)
             logging.debug(f'setting binning to {self.camera_binning}')
             self.cam.set_binning(self.camera_binning, self.camera_binning)
@@ -1131,13 +1134,66 @@ Valid solvers are:
             #time.sleep(0.5)
 
             logging.info(f'Saving image to {ff}')
-            if os.name == 'posix':
+
+            # add support for drivers that don't support saving image data to disk
+            if not self.cam.supports_saveimage():
                 # FIXME need better way to handle saving image to file!
                 image_data = self.cam.get_image_data()
-                # this is an hdulist
-                image_data.writeto(ff, overwrite=True)
+
+                #
+                # FIXME INDIBackend returns a FITS image
+                #       ASCOMBackend returns a numpy array
+                #       This is a temporary HACK to address this
+                #       but needs to be better handled!
+                #
+                fitsfmt = False
+                try:
+                    pri_header = image_data[0].header
+                    image_data = pri_header[0].data
+                    fitsfmt = True
+                except:
+                    pass
+
+                fits.writeto(ff, image_data, overwrite=True)
+
+                if not fitsfmt:
+                    # got a ndarray so make a fits doc with necessary
+                    # headers for
+                    hdulist = fits.open(ff, 'update')
+
+                    def set_header_keyvalue(hdulist, key, val):
+                        hdulist[0].header[key] = val
+
+                    xsize, ysize = self.cam.get_pixelsize()
+                    set_header_keyvalue(hdulist, 'XPIXSZ', xsize)
+                    set_header_keyvalue(hdulist,'YPIXSZ', ysize)
+
+                    set_header_keyvalue(hdulist,'XBINNING', self.camera_binning)
+                    set_header_keyvalue(hdulist,'YBINNING', self.camera_binning)
+                    set_header_keyvalue(hdulist,'XORGSUBF', 0)
+                    set_header_keyvalue(hdulist,'YORGSUBF', 0)
+
+                    radec = self.tel.get_position_j2000()
+                    rastr = radec.ra.to_string(u.hour, sep=" ", pad=True)
+                    decstr = radec.dec.to_string(alwayssign=True, sep=" ", pad=True)
+                    set_header_keyvalue(hdulist,'OBJCTRA', rastr)
+                    set_header_keyvalue(hdulist,'OBJCTDEC', decstr)
+
+                    hdulist.close()
+
+                result = True
             else:
-                self.cam.save_image_data(ff)
+                result = self.camera.save_image_data(ff)
+
+
+## OLD CODE
+##            if os.name == 'posix':
+##                # FIXME need better way to handle saving image to file!
+##                image_data = self.cam.get_image_data()
+##                # this is an hdulist
+##                image_data.writeto(ff, overwrite=True)
+##            else:
+##                self.cam.save_image_data(ff)
 
             self.solved_j2000 = self.plate_solve_file(ff)
 
@@ -1152,15 +1208,16 @@ Valid solvers are:
         (maxx, maxy) = result
         logging.debug("Sensor size is %d x %d", maxx, maxy)
 
-        width = maxx
-        height = maxy
+        width = maxx/self.camera_binning
+        height = maxy/self.camera_binning
+
+        logging.debug("CCD size: %d x %d ", width, height)
+        logging.debug("CCD bin : %d x %d ", self.camera_binning, self.camera_binning)
 
         self.cam.set_frame(0, 0, width, height)
 
         self.cam.set_binning(self.camera_binning, self.camera_binning)
 
-        logging.debug("CCD size: %d x %d ", width, height)
-        logging.debug("CCD bin : %d x %d ", self.camera_binning, self.camera_binning)
 
         return True
 
