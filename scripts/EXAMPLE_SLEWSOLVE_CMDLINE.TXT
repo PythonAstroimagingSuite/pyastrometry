@@ -1,0 +1,1 @@
+python pyastrometry_cli_main.py slewsolve "10:17:49.6" "+21:47:24" --profile C8Mach1ASI1600Maxim

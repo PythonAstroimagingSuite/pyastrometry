@@ -1,0 +1,1 @@
+ python pyastrometry_^Ci_main.py syncpos --profile C8Mach1ASI1600Maxim
