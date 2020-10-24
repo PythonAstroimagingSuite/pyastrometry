@@ -603,7 +603,7 @@ class MyApp:
             self.platesolve2 = PlateSolve2(self.settings.platesolve2_location)
 
             from pyastrometry.ASTAP import ASTAP
-            self.ASTAP = ASTAP(self.settings.astap_location)
+            self.ASTAP = ASTAP(self.settings.ASTAP_location)
 
         # astrometry.net local
         if os.name == 'posix':
@@ -611,7 +611,7 @@ class MyApp:
             from pyastrometry.ASTAP import ASTAP
             self.astrometrynetlocal = AstrometryNetLocal(self.settings.astrometrynetlocal_location)
             self.astrometrynetlocal.probe_solve_field_revision()
-            self.ASTAP = ASTAP(self.settings.astap_location)
+            self.ASTAP = ASTAP(self.settings.ASTAP_location)
 
     def parse_operation(self):
         logging.debug('parse_operation()')
@@ -674,7 +674,7 @@ The accepted commands are:
             self.camera_driver = args.camera
 
         if args.mount is not None:
-            self.mount_driver = args.telescope
+            self.mount_driver = args.mount
 
         if self.backend_name is None:
             logging.error('Must configure backend!')
@@ -690,15 +690,16 @@ The accepted commands are:
 
         if args.exposure is not None:
             logging.debug(f'Set camera exposure to {args.exposure}')
-            self.camera_exposure = args.exposure
+            self.settings.camera_exposure = args.exposure
 
         if args.binning is not None:
             logging.debug(f'Set camera binning to {args.binning}')
-            self.camera_binning = args.binning
+            self.settings.camera_binning = args.binning
 
         logging.debug(f'Using device backend {self.backend_name}')
         logging.debug(f'Using camera_drver = {self.camera_driver}')
         logging.debug(f'Using mount_driver = {self.mount_driver}')
+
 #        logging.info(f'Using camera_exposure = {self.camera_exposure}')
 #        logging.info(f'Using camera_binning = {self.camera_binning}')
 
@@ -707,6 +708,7 @@ The accepted commands are:
         parser = argparse.ArgumentParser(description='Solve Parameters',
                                          usage='''
 Valid solvers are:
+    astap
     astrometryonline
     astrometrylocal
     platesolve2''')
@@ -918,7 +920,10 @@ Valid solvers are:
             sys.exit(1)
 
         logging.info('Operation complete - exiting')
-        self.backend.disconnect()
+        
+        if needdevs:
+            self.backend.disconnect()
+            
         self.settings.write()
         sys.exit(0)
 
@@ -975,14 +980,15 @@ Valid solvers are:
 #            self.cam = INDI_Camera(self.backend)
 
         # YUCK MAXIM MIXED IN
-        if self.backend_name == 'ASCOM':
-            if self.camera_driver == 'MaximDL':
-                logging.info('Creating MaximDL camera object')
-                self.cam = self.backend.newMaximDLCamera()
-            else:
-                self.cam = self.backend.newCamera()
-        else:
-            self.cam = self.backend.newCamera()
+#        if self.backend_name == 'ASCOM':
+#            if self.camera_driver == 'MaximDL':
+#                logging.info('Creating MaximDL camera object')
+#                self.cam = self.backend.newMaximDLCamera()
+#            else:
+#                self.cam = self.backend.newCamera()
+#        else:
+
+        self.cam = self.backend.newCamera()
 
         rc = self.cam.connect(self.camera_driver)
 
@@ -1183,7 +1189,7 @@ Valid solvers are:
 
                 result = True
             else:
-                result = self.camera.save_image_data(ff)
+                result = self.cam.save_image_data(ff)
 
 
 ## OLD CODE
@@ -1541,7 +1547,7 @@ if __name__ == '__main__':
 
     formatter = logging.Formatter(FORMAT_CONSOLE)
     CH = logging.StreamHandler()
-    CH.setLevel(logging.INFO)
+    CH.setLevel(logging.DEBUG)
     CH.setFormatter(formatter)
     LOG.addHandler(CH)
 
