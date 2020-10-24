@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import logging
 import subprocess
 from astropy.coordinates import SkyCoord
@@ -42,6 +42,14 @@ class ASTAP:
 # example cmdline
 # /usr/bin/SDYSP -f <fits-file> -r <search-rad> -fov <fov> -ra <ra_guess> -dec <dec_guess> -z <downsample>
 
+        #DEBUG
+#        import shutil
+#        from pathlib import Path
+#        oldfile = Path(fname)
+#        newfile = oldfile.name
+#        shutil.copy(fname, '/tmp/' + newfile + '-BACKUP')
+        # END DEBUG
+
         cmd_line = self.exec_path
         cmd_line += f' -ra {solve_params.radec.ra.hour}'
         cmd_line += f' -sdp {solve_params.radec.dec.degree+90}'
@@ -57,27 +65,26 @@ class ASTAP:
         cmd_line += ' -f ' + fname
 
         # output file
-        (base, ext) = os.path.splitext(fname)
-        out_fname = base
+        outfile_path = Path(fname).with_suffix('.ini')
 
-        if os.path.isfile(out_fname+'.ini'):
-            os.unlink(out_fname+'.ini')
+        if Path.is_file(outfile_path):
+            Path.unlink(outfile_path)
 
-        cmd_line += ' -o ' + out_fname
+        cmd_line += ' -o ' + str(outfile_path)
 
         import shlex
         cmd_args = shlex.split(cmd_line)
 
-        logging.info(f'cmd_line for astrometry.net local = "{cmd_line}"')
-        logging.info(f'cmd_args for astrometry.net local = "{cmd_args}"')
+        logging.info(f'cmd_line for ASTAP = "{cmd_line}"')
+        logging.info(f'cmd_args for ASTAP = "{cmd_args}"')
 
 #/usr/bin/solve-field -O --no-plots --no-verify --resort --no-fits2fits --do^Csample 2 -3 310.521 -4 45.3511 -5 10 --config /etc/astrometry.cfg -W /tmp/solution.wcs plate_solve_image.fits
 
-        with subprocess.Popen(cmd_line,
-                                    stdin=subprocess.PIPE,
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE,
-                                    universal_newlines=True) as ps_proc:
+        with subprocess.Popen(cmd_args,
+                              stdin=subprocess.PIPE,
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE,
+                              universal_newlines=True) as ps_proc:
 
             logging.debug('ASTAP_proc output:')
             for l in ps_proc.stdout:
@@ -86,7 +93,7 @@ class ASTAP:
 
 
         try:
-            out_file = open(out_fname+'.ini', 'r')
+            out_file = open(outfile_path, 'r')
         except OSError as err:
             print(f"Error opening output file: {err}")
             return None
