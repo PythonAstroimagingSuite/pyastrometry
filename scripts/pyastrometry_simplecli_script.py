@@ -1,10 +1,3 @@
-#import requests
-#import json
-#R = requests.post('http://nova.astrometry.net/api/login', data={'request-json': json.dumps({"apikey": "***REMOVED***"})})
-#print(R.text)
-#print(R['session'])
-
-#import os
 import sys
 import time
 #import base64
