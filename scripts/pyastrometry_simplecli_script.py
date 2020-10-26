@@ -284,7 +284,7 @@ def convert_ra_deg_to_hour(ra_deg):
 if __name__ == '__main__':
 
     c = Client()
-    c.login('***REMOVED***')
+    c.login('***REMOVED_DATA***')
 
     scale_lower = 0.8
     scale_upper = 1.2
