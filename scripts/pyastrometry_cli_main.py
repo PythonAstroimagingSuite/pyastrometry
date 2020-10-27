@@ -12,6 +12,7 @@ import tempfile
 from datetime import datetime
 from configobj import ConfigObj
 
+
 try:
     # py3
     from urllib.parse import urlparse, urlencode, quote
@@ -1118,11 +1119,16 @@ Valid solvers are:
             # reset frame to full sensor
             self.cam.set_binning(1, 1)
             width, height = self.cam.get_size()
+            logging.debug(f'width/height = {width, height}')
+            logging.debug(f'camera_binning = {self.camera_binning}')
+            self.cam.set_frame(0, 0, width, height)
+
+            # now set desired frame/binning
             width = width/self.camera_binning
             height = height/self.camera_binning
+            self.cam.set_binning(self.camera_binning, self.camera_binning)
             self.cam.set_frame(0, 0, width, height)
             logging.debug(f'setting binning to {self.camera_binning}')
-            self.cam.set_binning(self.camera_binning, self.camera_binning)
             self.cam.start_exposure(focus_expos)
 
             # give things time to happen (?) I get Maxim not ready errors so slowing it down
@@ -1327,6 +1333,9 @@ Valid solvers are:
                                                    )
         if solved_j2000 is None:
             logging.error('Plate solve failed!')
+            if os.name == 'posix':
+                logging.error('Make sure DISPLAY variable is set properly '
+                              'or ASTAP will not be able to run.')
             return None
 
         logging.info('Plate solve succeeded')
