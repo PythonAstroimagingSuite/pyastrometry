@@ -54,7 +54,8 @@ class ASTAP:
         cmd_line += f' -ra {solve_params.radec.ra.hour}'
         cmd_line += f' -sdp {solve_params.radec.dec.degree+90}'
 
-        cmd_line += f' -fov {solve_params.fov_x.degree}'
+        # ASTAP wanted height of image for FOV
+        cmd_line += f' -fov {solve_params.fov_y.degree}'
 
         # search radius - default to 10 if not given
         if search_rad is None:
@@ -104,7 +105,7 @@ class ASTAP:
         ang_str = None
         pixelscale_str = None
         for l in out_file.readlines():
-            #print('l', l)
+#            print('l', l)
             ll = l.strip()
 #            ll = ''.join(filter(lambda x: x.isalnum() or x.isspace() or x == '.', l))
 #            print(ll)
