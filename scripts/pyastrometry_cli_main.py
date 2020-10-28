@@ -921,10 +921,10 @@ Valid solvers are:
             sys.exit(1)
 
         logging.info('Operation complete - exiting')
-        
+
         if needdevs:
             self.backend.disconnect()
-            
+
         self.settings.write()
         sys.exit(0)
 
