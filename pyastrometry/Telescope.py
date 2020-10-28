@@ -47,7 +47,8 @@ class Telescope:
         :type: SkyCoord
         """
         time_now = Time(datetime.utcnow(), scale='utc')
-        return pos_J2000.transform_to(FK5(equinox=Time(time_now.jd, format='jd', scale='utc')))
+        return pos_J2000.transform_to(FK5(equinox=Time(time_now.jd,
+                                                       format='jd', scale='utc')))
 
     @staticmethod
     def precess_JNOW_to_J2000(pos_JNOW):
@@ -99,7 +100,8 @@ class Telescope:
         time_now = Time(datetime.utcnow(), scale='utc')
         ra_now, dec_now = super().get_position_radec()
 
-        return SkyCoord(ra=ra_now*u.hour, dec=dec_now*u.degree, frame='fk5', equinox=Time(time_now.jd, format="jd", scale="utc"))
+        return SkyCoord(ra=ra_now*u.hour, dec=dec_now*u.degree, frame='fk5',
+                        equinox=Time(time_now.jd, format="jd", scale="utc"))
 
     def get_position_j2000(self):
         """
@@ -124,7 +126,7 @@ class Telescope:
         if not self.connected:
             return False
 
-        logging.info(f'Syncing to {pos.ra.to_string(unit=u.hour, sep=":")} ' + \
+        logging.info(f'Syncing to {pos.ra.to_string(unit=u.hour, sep=":")} '
                      f'{pos.dec.to_string(unit=u.degree, sep=":")}')
         try:
            super().sync(pos.ra.hour, pos.dec.degree)
@@ -144,7 +146,7 @@ class Telescope:
         """
         if not self.connected:
             return False
-        logging.info(f'Goto {pos.ra.to_string(unit=u.hour, sep=":")} ' + \
+        logging.info(f'Goto {pos.ra.to_string(unit=u.hour, sep=":")} '
                      f'{pos.dec.to_string(unit=u.degree, sep=":")}')
         super().slew(pos.ra.hour, pos.dec.degree)
         return True

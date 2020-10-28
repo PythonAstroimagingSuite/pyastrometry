@@ -344,7 +344,7 @@ if __name__ == '__main__':
     # setup telescope
     #tel = win32com.client.Dispatch("AstroPhysicsV2.Telescope")
     tel = win32com.client.Dispatch("ASCOM.Simulator.Telescope")
-    
+
     if tel.Connected:
         print("	->Telescope was already connected")
     else:
