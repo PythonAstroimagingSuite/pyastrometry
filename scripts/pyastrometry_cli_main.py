@@ -12,17 +12,9 @@ import tempfile
 from datetime import datetime
 from configobj import ConfigObj
 
-
-try:
-    # py3
-    from urllib.parse import urlparse, urlencode, quote
-    from urllib.request import urlopen, Request
-    from urllib.error import HTTPError
-except ImportError:
-    # py2
-    from urlparse import urlparse
-    from urllib import urlencode, quote
-    from urllib2 import urlopen, Request, HTTPError
+from urllib.parse import urlparse, urlencode, quote
+from urllib.request import urlopen, Request
+from urllib.error import HTTPError
 
 #from exceptions import Exception
 from email.mime.base import MIMEBase
@@ -563,34 +555,6 @@ class MyApp:
 
         logging.debug(f'startup settings: {self.settings}')
 
-        # FIXME This is an ugly section of code
-#        self.backend = Backend()
-#
-#        rc = self.backend.connect()
-#        if not rc:
-#            logging.error('Failed to connect to backend!')
-#            sys.exit(-1)
-#
-#        self.cam = None
-#
-#        if BACKEND == 'ASCOM':
-#            self.cam = MaximDL_Camera()
-#        elif BACKEND == 'INDI':
-#            self.cam = INDI_Camera(self.backend)
-#        else:
-#            logging.error(f'Unknown BACKEND = {BACKEND}!')
-#            sys.exit(1)
-#
-#        # telescope
-#        # FIXME Shouldn't have to make separate call for ASCOM!!
-#        if BACKEND == 'ASCOM':
-#            self.tel = Telescope()
-#        elif BACKEND == 'INDI':
-#            self.tel = Telescope(self.backend)
-
-#        self.camera_driver = None
-#        self.telescope_driver = None
-
         # init vars
         self.solved_j2000 = None
 
@@ -614,38 +578,133 @@ class MyApp:
             self.astrometrynetlocal.probe_solve_field_revision()
             self.ASTAP = ASTAP(self.settings.ASTAP_location)
 
-    def parse_operation(self):
-        logging.debug('parse_operation()')
+    def parse_commandline(self):
+
+        # argments common to all commands
+        common = argparse.ArgumentParser(add_help=False)
+
+        # add this argument to creating parser if defining options common
+        # to all commands
+        #
+        # formatter_class=argparse.RawTextHelpFormatter
+        #
+        # and then uncomment code add bottom of function to add epilog to parser
         parser = argparse.ArgumentParser(description='Astromentry CLI',
-                                         usage='''pyastrometry_cli <operation> [<args>]
+                                         formatter_class=argparse.RawTextHelpFormatter)
 
-The accepted commands are:
-   getpos   Return current RA/DEC of mount
-   solvepos     Take an image and solve current position
-   solveimage <filename>    Solve position of an image file
-   syncpos      Take an image, solve and sync mount
-   slew <ra> <dec> Slew to position
-   slewsolve  <ra> <dec>  Slew to position and plate solve and slew until within threshold
-''')
-        parser.add_argument('operation', type=str, help='Operation to perform')
-       #parser.add_argument('solver', type=str, help='')
+        # add common arguments here and
+        parser.add_argument('--debug', action='store_true', help='Show debugging output')
 
-        if len(sys.argv) < 2:
-            parser.print_help()
-        args = parser.parse_args(sys.argv[1:2])
+        devopts_epilog = 'Specify devices use either the --profile ' \
+                          + 'option OR the individual device options ' \
+                          + '(--backend/--camera/--mount) but NOT both.'
 
-        return args.operation
+        subparsers = parser.add_subparsers(title='operations', dest='operation')
 
-    def parse_devices(self):
+        device_common = argparse.ArgumentParser(add_help=False)
+        device_common.add_argument('--profile', type=str, help='Name of astro profile')
+        device_common.add_argument('--backend', type=str, help='Name of device backend')
+
+        device_mount =argparse.ArgumentParser(add_help=False)
+        device_mount.add_argument('--mount', type=str, help='Name of mount driver')
+
+        device_camera =argparse.ArgumentParser(add_help=False)
+        device_camera.add_argument('--camera', type=str, help='Name of camera driver')
+        device_camera.add_argument('--exposure', type=float, help='Exposure time')
+        device_camera.add_argument('--binning', type=int, help='Camera binning')
+
+        filename = argparse.ArgumentParser(add_help=False)
+        filename.add_argument('filename', type=str, help='Filename to solve')
+
+        solveopts = argparse.ArgumentParser(add_help=False)
+        solveopts.add_argument('--solver', type=str, help='Solver to use')
+        solveopts.add_argument('--pixelscale', type=float, help='Pixel scale (arcsec/pixel)')
+        solveopts.add_argument('--downsample', type=int, help='Downsampling')
+        solveopts.add_argument('--outfile', type=str, help='Output JSON file with solution')
+        solveopts.add_argument('--force', action='store_true', help='Overwrite output file')
+
+        syncopts = argparse.ArgumentParser(add_help=False)
+        syncopts.add_argument('--syncmaxsep', type=float, help='Max deviation to allow sync')
+        syncopts.add_argument('--syncforce', action='store_true', help='Force sync no matter deviation')
+
+        slewopts = argparse.ArgumentParser(add_help=False)
+        slewopts.add_argument('ra', type=str, help='Target RA (J2000)')
+        slewopts.add_argument('dec', type=str, help='Target DEC (J2000)')
+
+        # commands
+        getpos = subparsers.add_parser('getpos', parents=[common, device_common, device_mount])
+
+        solvepos = subparsers.add_parser('solvepos', parents=[common, device_common,
+                                                              device_camera, device_mount,
+                                                              solveopts])
+        solvepos.epilog = devopts_epilog
+
+        solveimage = subparsers.add_parser('solveimage', parents=[common, filename, solveopts])
+
+        syncpos = subparsers.add_parser('syncpos', parents=[common, device_common,
+                                                            device_camera, device_mount,
+                                                            solveopts, syncopts])
+        syncpos.epilog = devopts_epilog
+
+        slew = subparsers.add_parser('slew', parents=[common, device_mount, slewopts])
+        slew.epilog = devopts_epilog
+
+        slewsolve = subparsers.add_parser('slewsolve', parents=[common, device_common,
+                                                           device_camera, device_mount,
+                                                           slewopts, solveopts])
+        slewsolve.add_argument('--slewthreshold', type=float, help='Cutoff for precise clew (in arcsec)')
+        slewsolve.add_argument('--slewtries', type=int, help='Number of tries to reach target')
+        slewsolve.epilog = devopts_epilog
+
+        # run.add_argument('--fast', action='store_true', help='run only arg')
+
+        parser.epilog = "--- Arguments common to all sub-parsers ---" \
+            + common.format_help().replace(common.format_usage(), '')
+
+        args = parser.parse_args()
+        logging.debug(f'parsed args = {args}')
+
+        return args
+
+#     def parse_operation(self):
+#         logging.debug('parse_operation()')
+#         parser = argparse.ArgumentParser(description='Astromentry CLI',
+#                                          usage='''pyastrometry_cli <operation> [<args>]
+
+# The accepted commands are:
+#    getpos   Return current RA/DEC of mount
+#    solvepos     Take an image and solve current position
+#    solveimage <filename>    Solve position of an image file
+#    syncpos      Take an image, solve and sync mount
+#    slew <ra> <dec> Slew to position
+#    slewsolve  <ra> <dec>  Slew to position and plate solve and slew until within threshold
+# ''')
+#         parser.add_argument('operation', type=str, help='Operation to perform')
+#        #parser.add_argument('solver', type=str, help='')
+
+#         if len(sys.argv) < 2:
+#             parser.print_help()
+#         args = parser.parse_args(sys.argv[1:2])
+
+#         return args.operation
+
+    def parse_devices(self, args):
+        """
+        Set device options from parsed command line arguments.
+
+        :parameter args: Parsed command line arguments from parse_commandline().
+        :type args: Argparse.Namespace
+
+        """
         logging.debug('parse_devices()')
-        parser = argparse.ArgumentParser()
-        parser.add_argument('--profile', type=str, help='Name of astro profile')
-        parser.add_argument('--backend', type=str, help='Name of device backend')
-        parser.add_argument('--mount', type=str, help='Name of mount driver')
-        parser.add_argument('--camera', type=str, help='Name of camera driver')
-        parser.add_argument('--exposure', type=float, help='Exposure time')
-        parser.add_argument('--binning', type=int, help='Camera binning')
-        args, unknown = parser.parse_known_args(sys.argv)
+        # parser = argparse.ArgumentParser()
+        # parser.add_argument('--profile', type=str, help='Name of astro profile')
+        # parser.add_argument('--backend', type=str, help='Name of device backend')
+        # parser.add_argument('--mount', type=str, help='Name of mount driver')
+        # parser.add_argument('--camera', type=str, help='Name of camera driver')
+        # parser.add_argument('--exposure', type=float, help='Exposure time')
+        # parser.add_argument('--binning', type=int, help='Camera binning')
+        # args, unknown = parser.parse_known_args(sys.argv)
 
         if args.profile is not None:
             logging.info(f'Setting up device using astro profile {args.profile}')
@@ -704,22 +763,29 @@ The accepted commands are:
 #        logging.info(f'Using camera_exposure = {self.camera_exposure}')
 #        logging.info(f'Using camera_binning = {self.camera_binning}')
 
-    def parse_solve_params(self):
+    def parse_solve_params(self, args):
+        """
+        Set plate solving options from parsed command line arguments.
+
+        :parameter args: Parsed command line arguments from parse_commandline().
+        :type args: Argparse.Namespace
+
+        """
         logging.debug('parse_solve_params')
-        parser = argparse.ArgumentParser(description='Solve Parameters',
-                                         usage='''
-Valid solvers are:
-    astap
-    astrometryonline
-    astrometrylocal
-    platesolve2''')
-        parser.add_argument('--profile', type=str, help='Name of astro profile')
-        parser.add_argument('--solver', type=str, help='Solver to use')
-        parser.add_argument('--pixelscale', type=float, help='Pixel scale (arcsec/pixel)')
-        parser.add_argument('--downsample', type=int, help='Downsampling')
-        parser.add_argument('--outfile', type=str, help='Output JSON file with solution')
-        parser.add_argument('--force', action='store_true', help='Overwrite output file')
-        args, unknown = parser.parse_known_args(sys.argv)
+#         parser = argparse.ArgumentParser(description='Solve Parameters',
+#                                          usage='''
+# Valid solvers are:
+#     astap
+#     astrometryonline
+#     astrometrylocal
+#     platesolve2''')
+#         parser.add_argument('--profile', type=str, help='Name of astro profile')
+#         parser.add_argument('--solver', type=str, help='Solver to use')
+#         parser.add_argument('--pixelscale', type=float, help='Pixel scale (arcsec/pixel)')
+#         parser.add_argument('--downsample', type=int, help='Downsampling')
+#         parser.add_argument('--outfile', type=str, help='Output JSON file with solution')
+#         parser.add_argument('--force', action='store_true', help='Overwrite output file')
+#         args, unknown = parser.parse_known_args(sys.argv)
 
         if args.solver is None:
             if os.name == 'nt':
@@ -766,19 +832,35 @@ Valid solvers are:
 
         return args.outfile
 
-    def parse_filename(self):
+    def parse_filename(self, args):
+        """
+        Set output filename options from parsed command line arguments.
+
+        :parameter args: Parsed command line arguments from parse_commandline().
+        :type args: Argparse.Namespace
+        :returns: Output filename.
+        :rtype: str
+
+        """
         logging.debug('parse_solve_filename')
-        parser = argparse.ArgumentParser()
-        parser.add_argument('filename', type=str, help='Filename to solve')
-        args, unknown = parser.parse_known_args(sys.argv[2:3])
+        # parser = argparse.ArgumentParser()
+        # parser.add_argument('filename', type=str, help='Filename to solve')
+        # args, unknown = parser.parse_known_args(sys.argv[2:3])
         return args.filename
 
-    def parse_sync(self):
+    def parse_sync(self, args):
+        """
+        Set sync options from parsed command line arguments.
+
+        :parameter args: Parsed command line arguments from parse_commandline().
+        :type args: Argparse.Namespace
+
+        """
         logging.debug('parse_sync')
-        parser = argparse.ArgumentParser()
-        parser.add_argument('--syncmaxsep', type=float, help='Max deviation to allow sync')
-        parser.add_argument('--syncforce', action='store_true', help='Force sync no matter deviation')
-        args, unknown = parser.parse_known_args(sys.argv)
+        # parser = argparse.ArgumentParser()
+        # parser.add_argument('--syncmaxsep', type=float, help='Max deviation to allow sync')
+        # parser.add_argument('--syncforce', action='store_true', help='Force sync no matter deviation')
+        # args, unknown = parser.parse_known_args(sys.argv)
         if args.syncforce:
             logging.warning('Will force sync no matter how large the separation')
             self.settings.max_allow_sep = 999
@@ -786,14 +868,21 @@ Valid solvers are:
             logging.debug(f'Setting max_all_sep to {args.syncmaxsep}')
             self.settings.max_allow_sep = args.syncmaxsep
 
-    def parse_slew(self):
+    def parse_slew(self, args):
+        """
+        Set slew options from parsed command line arguments.
+
+        :parameter args: Parsed command line arguments from parse_commandline().
+        :type args: Argparse.Namespace
+
+        """
         logging.debug('parse_slew')
-        parser = argparse.ArgumentParser()
-        parser.add_argument('ra', type=str, help='Target RA (J2000)')
-        parser.add_argument('dec', type=str, help='Target DEC (J2000)')
-        parser.add_argument('--slewthreshold', type=float, help='Cutoff for precise clew (in arcsec)')
-        parser.add_argument('--slewtries', type=int, help='Number of tries to reach target')
-        args, unknown = parser.parse_known_args(sys.argv[2:4])
+        # parser = argparse.ArgumentParser()
+        # parser.add_argument('ra', type=str, help='Target RA (J2000)')
+        # parser.add_argument('dec', type=str, help='Target DEC (J2000)')
+        # parser.add_argument('--slewthreshold', type=float, help='Cutoff for precise clew (in arcsec)')
+        # parser.add_argument('--slewtries', type=int, help='Number of tries to reach target')
+        # args, unknown = parser.parse_known_args(sys.argv[2:4])
         if args.ra is None or args.dec is None:
             logging.error('Must supply target RA and DEC (J2000)!')
             sys.exit(1)
@@ -811,23 +900,28 @@ Valid solvers are:
         logging.debug(f'Settings target_j2000 to {target}')
         self.target_j2000 = target
 
-        if args.slewthreshold is not None:
-            logging.debug(f'Setting slew threshold to {args.slewthreshold}')
-            self.settings.precise_slew_limit = args.slewthreshold
+        # only need these args if solving also
+        if args.operation == 'slewsolve':
+            if args.slewthreshold is not None:
+                logging.debug(f'Setting slew threshold to {args.slewthreshold}')
+                self.settings.precise_slew_limit = args.slewthreshold
 
-        if args.slewtries is not None:
-            logging.debug(f'Setting # of slew tries to {args.slewtries}')
-            self.settings.precise_slew_tries = args.slewtries
+            if args.slewtries is not None:
+                logging.debug(f'Setting # of slew tries to {args.slewtries}')
+                self.settings.precise_slew_tries = args.slewtries
 
     def run(self):
-        operation = self.parse_operation()
+        args = self.parse_commandline()
+
+        #operation = self.parse_operation()
+        operation = args.operation
         logging.debug(f'operation = {operation}')
 
-        outfile = self.parse_solve_params()
+        outfile = self.parse_solve_params(args)
         logging.debug(f'Using solver {self.solver}')
         needdevs = operation in ['solvepos', 'syncpos', 'slewsolve', 'getpos', 'slew']
         if needdevs:
-            self.parse_devices()
+            self.parse_devices(args)
 
             logging.debug(f'self.backend_name = {self.backend_name}')
             rc = self.connect_backend()
@@ -870,12 +964,12 @@ Valid solvers are:
                     f.close()
 
                 if operation == 'syncpos':
-                    self.parse_sync()
+                    self.parse_sync(args)
                     logging.info('Syncing position')
                     self.sync_pos()
         elif operation == 'solveimage':
             logging.debug('operation solveimage')
-            fname = self.parse_filename()
+            fname = self.parse_filename(args)
             logging.debug(f'Solving file {fname}')
             if fname is None:
                 logging.error(f'Need filename of image to solve')
@@ -888,8 +982,8 @@ Valid solvers are:
         elif operation == 'slewsolve':
             logging.debug('operation slewsolve')
             self.target_j2000 = None
-            self.parse_sync()
-            self.parse_slew()
+            self.parse_sync(args)
+            self.parse_slew(args)
             self.target_precise_goto()
         elif operation == 'getpos':
             logging.debug('operation getpos')
@@ -914,7 +1008,7 @@ Valid solvers are:
                 f.close()
         elif operation == 'slew':
             logging.debug('operation slew')
-            self.parse_slew()
+            self.parse_slew(args)
             self.target_goto()
         else:
             logging.error(f'Unknown operation {operation}!')
