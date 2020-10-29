@@ -11,6 +11,7 @@ Welcome to pyastrometry's documentation!
    :caption: Contents:
 
    pyastrometry_cli
+   modules
 
 Indices and tables
 ==================
