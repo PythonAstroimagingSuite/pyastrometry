@@ -526,7 +526,7 @@ class ProgramSettings:
                 logging.debug(f'write settings: creating config dir {self._get_config_dir()}')
                 os.mkdir(self._get_config_dir())
 
-        logging.debug(f'{self._config.filename}')
+        logging.debug(f'writing config file {self._config.filename}')
         self._config.write()
 
     def read(self):
@@ -560,7 +560,7 @@ class MyApp:
 
         self.target_j2000 = None
 
-        self.camera_binning = self.settings.camera_binning
+        self.camera_binning = None
 
         # platesolve2
         if os.name == 'nt':
@@ -727,6 +727,7 @@ class MyApp:
                 self.solver = solver
                 logging.info(f'profile solver = {self.solver}')
 
+        # command line takes precedence over profile and ini file
         if args.backend is not None:
             self.backend_name = args.backend
 
@@ -754,7 +755,7 @@ class MyApp:
 
         if args.binning is not None:
             logging.debug(f'Set camera binning to {args.binning}')
-            self.settings.camera_binning = args.binning
+            self.camera_binning = args.binning
 
         logging.debug(f'Using device backend {self.backend_name}')
         logging.debug(f'Using camera_drver = {self.camera_driver}')
@@ -947,6 +948,10 @@ class MyApp:
                     sys.exit(1)
                 else:
                     logging.debug(f'{self.camera_driver} connected')
+
+                # if no binning from profile or command line try from ini file
+                if self.camera_binning is None:
+                    self.camera_binning = self.settings.camera_binning
 
         if operation == 'solvepos' or operation == 'syncpos':
             logging.debug(f'operation {operation}')
@@ -1340,6 +1345,12 @@ class MyApp:
         pos_j2000 : PlateSolveSolution
             Solution to plate solve or None if it failed.
         """
+
+        # handy for saving file so we can test solving manually if there
+        # is an issue
+        # import shutil
+        # shutil.copyfile(fname, 'tmp_solve_file.fits')
+
         if self.solver == 'astrometryonline':
             return self.plate_solve_file_astrometry(fname)
         # FIXME This is ugly overloading platesolve2 radio button!
