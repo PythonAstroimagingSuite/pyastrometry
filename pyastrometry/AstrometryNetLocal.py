@@ -49,23 +49,28 @@ class AstrometryNetLocal:
 
         logging.debug(f'probe_solve_field_revision cmd_args = {cmd_args}')
 
-        net_proc = subprocess.Popen(cmd_args,
-                                    stdin=subprocess.PIPE,
-                                    stdout=subprocess.PIPE,
-                                    stderr=subprocess.PIPE,
-                                    universal_newlines=True)
-        poll_value = None
-        while True:
-            poll_value = net_proc.poll()
-            if poll_value is not None:
-                break
+        try:
+            net_proc = subprocess.Popen(cmd_args,
+                                        stdin=subprocess.PIPE,
+                                        stdout=subprocess.PIPE,
+                                        stderr=subprocess.PIPE,
+                                        universal_newlines=True)
+        except FileNotFoundError:
+            # astrometry local not installed
+            logging.warning(f'Could not find {self.exec_path} astrometry local solver!')
+            return None
+        else:
+            poll_value = None
+            while True:
+                poll_value = net_proc.poll()
+                if poll_value is not None:
+                    break
 
-
-# output
-#This program is part of the Astrometry.net suite.
-#For details, visit http://astrometry.net.
-#Git URL https://github.com/dstndstn/astrometry.net
-#Revision 0.73, date Thu_Nov_16_08:30:44_2017_-0500.
+        # output
+        # This program is part of the Astrometry.net suite.
+        # For details, visit http://astrometry.net.
+        # Git URL https://github.com/dstndstn/astrometry.net
+        # Revision 0.73, date Thu_Nov_16_08:30:44_2017_-0500.
 
         rev_str = None
 
