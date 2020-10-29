@@ -1,7 +1,10 @@
 Python Astroimaging Suite
 =========================
 
-Check out the PythonAstroimagingSuite at https://github.com/PythonAstroimagingSuite/.
+Check out the rest of the PythonAstroimagingSuite: 
+
+ - Code at https://github.com/PythonAstroimagingSuite/.
+ - Documentation at https://pythonastroimagingsuite.readthedocs.io/en/latest/
 
 pyastrometry
 ------------
@@ -18,6 +21,12 @@ Supported Platforms
 -------------------
 
 The driver requires python => 3.7.
+
+Documentation
+-------------
+
+Documentation at https://pythonastroimagingsuite.readthedocs.io/projects/pyastrometry/en/latest/
+
 
 Source
 ------
