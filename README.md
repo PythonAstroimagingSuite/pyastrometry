@@ -1,5 +1,5 @@
-PythonAstroimagingSuite
-=======================
+Python Astroimaging Suite
+=========================
 
 Check out the PythonAstroimagingSuite at https://github.com/PythonAstroimagingSuite/.
 
