@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # even on windows this 'tricks' conda into wrapping script so it will
 #
 # simple CLI program for plate solving
@@ -634,6 +634,10 @@ class MyApp:
         filename = argparse.ArgumentParser(add_help=False)
         filename.add_argument('filename', type=str, help='Filename to solve')
 
+        getposopts = argparse.ArgumentParser(add_help=False)
+        getposopts.add_argument('--outfile', type=str, help='Output JSON file with solution')
+        getposopts.add_argument('--force', action='store_true', help='Overwrite output file')
+
         solveopts = argparse.ArgumentParser(add_help=False)
         solveopts.add_argument('--solver', type=str, help='Solver to use')
         solveopts.add_argument('--pixelscale', type=float, help='Pixel scale (arcsec/pixel)')
@@ -650,7 +654,8 @@ class MyApp:
         slewopts.add_argument('dec', type=str, help='Target DEC (J2000)')
 
         # commands
-        getpos = subparsers.add_parser('getpos', parents=[common, device_common, device_mount])
+        getpos = subparsers.add_parser('getpos', parents=[common, device_common,
+                                                          device_mount, getposopts])
 
         solvepos = subparsers.add_parser('solvepos', parents=[common, device_common,
                                                               device_camera, device_mount,
@@ -664,7 +669,7 @@ class MyApp:
                                                             solveopts, syncopts])
         syncpos.epilog = devopts_epilog
 
-        slew = subparsers.add_parser('slew', parents=[common, device_mount, slewopts])
+        slew = subparsers.add_parser('slew', parents=[common, device_common, device_mount, slewopts])
         slew.epilog = devopts_epilog
 
         slewsolve = subparsers.add_parser('slewsolve', parents=[common, device_common,
@@ -749,7 +754,7 @@ class MyApp:
         if args.backend is not None:
             self.backend_name = args.backend
 
-        if args.camera is not None:
+        if hasattr(args, 'camera') and args.camera is not None:
             self.camera_driver = args.camera
 
         if args.mount is not None:
@@ -763,15 +768,17 @@ class MyApp:
             logging.error('Must configure mount driver!')
             sys.exit(1)
 
-        if self.camera_driver is None:
+        # not all operations require camera so only check if
+        # it is in the arg list
+        if hasattr(args, 'camera') and self.camera_driver is None:
             logging.error('Must configure camera driver!')
             sys.exit(1)
 
-        if args.exposure is not None:
+        if hasattr(args, 'exposure') and args.exposure is not None:
             logging.debug(f'Set camera exposure to {args.exposure}')
             self.settings.camera_exposure = args.exposure
 
-        if args.binning is not None:
+        if hasattr(args, 'binning') and args.binning is not None:
             logging.debug(f'Set camera binning to {args.binning}')
             self.camera_binning = args.binning
 
@@ -843,7 +850,8 @@ class MyApp:
         if args.outfile is not None:
             if os.path.isfile(args.outfile):
                 if not args.force:
-                    logging.error(f'Output file {args.outfile} already exists - please remove before running')
+                    logging.error(f'Output file {args.outfile} already exists - '
+                                  'please remove before running')
                     sys.exit(1)
                 else:
                     logging.debug(f'Removing existing output file {args.outfile}')
@@ -936,8 +944,8 @@ class MyApp:
         operation = args.operation
         logging.debug(f'operation = {operation}')
 
-        outfile = self.parse_solve_params(args)
-        logging.debug(f'Using solver {self.solver}')
+        #outfile = self.parse_solve_params(args)
+        #logging.debug(f'Using solver {self.solver}')
         needdevs = operation in ['solvepos', 'syncpos', 'slewsolve', 'getpos', 'slew']
         if needdevs:
             self.parse_devices(args)
@@ -973,6 +981,8 @@ class MyApp:
 
         if operation == 'solvepos' or operation == 'syncpos':
             logging.debug(f'operation {operation}')
+            outfile = self.parse_solve_params(args)
+            logging.debug(f'Using solver {self.solver}')
             self.run_solve_image()
             if self.solved_j2000 is not None:
                 logging.info('Plate solve suceeded')
@@ -992,10 +1002,12 @@ class MyApp:
                     self.sync_pos()
         elif operation == 'solveimage':
             logging.debug('operation solveimage')
+            outfile = self.parse_solve_params(args)
+            logging.debug(f'Using solver {self.solver}')
             fname = self.parse_filename(args)
             logging.debug(f'Solving file {fname}')
             if fname is None:
-                logging.error(f'Need filename of image to solve')
+                logging.error('Need filename of image to solve')
                 sys.exit(1)
             self.run_solve_file(fname)
             if self.solved_j2000 is not None:
@@ -1004,12 +1016,15 @@ class MyApp:
                 logging.info(f'{s}')
         elif operation == 'slewsolve':
             logging.debug('operation slewsolve')
+            outfile = self.parse_solve_params(args)
+            logging.debug(f'Using solver {self.solver}')
             self.target_j2000 = None
             self.parse_sync(args)
             self.parse_slew(args)
             self.target_precise_goto()
         elif operation == 'getpos':
             logging.debug('operation getpos')
+            outfile = args.outfile
             pos = self.tel.get_position_j2000()
             # sys.stdout.write('Position read from mount:\n')
             # s =  json.dumps({

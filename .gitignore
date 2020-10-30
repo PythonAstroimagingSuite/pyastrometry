@@ -20,4 +20,8 @@ _templates
 _static
 _build
 PlateSolve2.exe
-
+.eggs
+.spyproject
+build
+docs/build
+pyastrometry.egg-info
