@@ -674,7 +674,7 @@ class MyApp:
 
         slewsolve = subparsers.add_parser('slewsolve', parents=[common, device_common,
                                                            device_camera, device_mount,
-                                                           slewopts, solveopts])
+                                                           slewopts, solveopts, syncopts])
         slewsolve.add_argument('--slewthreshold', type=float, help='Cutoff for precise clew (in arcsec)')
         slewsolve.add_argument('--slewtries', type=int, help='Number of tries to reach target')
         slewsolve.epilog = devopts_epilog
@@ -745,10 +745,6 @@ class MyApp:
             if binning is not None:
                 self.camera_binning = binning
                 logging.info(f'profile binning = {self.camera_binning}')
-            solver = ap.settings.platesolve.solver
-            if solver is not None:
-                self.solver = solver
-                logging.info(f'profile solver = {self.solver}')
 
         # command line takes precedence over profile and ini file
         if args.backend is not None:
@@ -813,28 +809,26 @@ class MyApp:
 #         parser.add_argument('--force', action='store_true', help='Overwrite output file')
 #         args, unknown = parser.parse_known_args(sys.argv)
 
-        if args.solver is None:
-            if os.name == 'nt':
-                self.solver = 'platesolve2'
-            elif os.name == 'posix':
-                self.solver = 'astrometrylocal'
-            else:
-                logging.error('No solver specified and no default found')
-                sys.exit(1)
-        else:
-            self.solver = args.solver
+        self.solver = None
 
         # FIXME This is duplicate from parse_devices() need to unify
         self.pixel_scale_arcsecpx = None
-        if args.profile is not None:
+        if hasattr(args, 'profile') and args.profile is not None:
             logging.debug(f'Setting up plate solve using astro profile {args.profile}')
             ap = AstroProfile()
             ap.read(args.profile)
             #equip_profile = EquipmentProfile('astroprofiles/equipment', args.profile)
             #equip_profile.read()
             self.pixel_scale_arcsecpx = ap.settings.platesolve.get('pixelscale', None)
+            solver = ap.settings.platesolve.solver
+            if solver is not None:
+                self.solver = solver
+                logging.info(f'profile solver = {self.solver}')
 
         # let command line override
+        if args.solver is not None:
+            self.solver = args.solver
+
         if args.pixelscale is not None:
             logging.debug(f'Setting pixel scale to {args.pixelscale}')
             self.pixel_scale_arcsecpx = args.pixelscale
@@ -856,6 +850,15 @@ class MyApp:
                 else:
                     logging.debug(f'Removing existing output file {args.outfile}')
                     os.unlink(args.outfile)
+
+        if self.solver is None:
+            if os.name == 'nt':
+                self.solver = 'platesolve2'
+            elif os.name == 'posix':
+                self.solver = 'astrometrylocal'
+            else:
+                logging.error('No solver specified and no default found')
+                sys.exit(1)
 
         return args.outfile
 
